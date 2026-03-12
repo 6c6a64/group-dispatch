@@ -187,10 +187,8 @@ export default function GroupDispatchApp() {
     resetSubgroupCounter(state.groups);
   };
 
-  const resetData = () => {
+  const resetGroupsData = () => {
     setDataError("");
-    setChildren([]);
-    setSupportWorkers([]);
     setGroups([]);
     resetSubgroupCounter();
   };
@@ -279,8 +277,9 @@ export default function GroupDispatchApp() {
 
           {isAuthenticated ? (
             <>
-              <Btn small variant="ghost" onClick={loadDemoData}>{t("app.loadDemoData")}</Btn>
-              <Btn small variant="ghost" onClick={resetData}>{t("app.resetData")}</Btn>
+              {!authEnabled ? (
+                <Btn small variant="ghost" onClick={loadDemoData}>{t("app.loadDemoData")}</Btn>
+              ) : null}
               {conflictsCount > 0 ? (
                 <div
                   style={{
@@ -425,6 +424,7 @@ export default function GroupDispatchApp() {
                 supportWorkers={supportWorkers}
                 t={t}
                 emptyStateMessage={isEmptyState ? t("app.emptyState") : ""}
+                onResetGroups={resetGroupsData}
               />
             ) : null}
             {tab === "children" ? (

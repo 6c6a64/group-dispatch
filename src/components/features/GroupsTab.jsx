@@ -153,7 +153,7 @@ function EnfantChip({ enfant, fromGroupeId, fromSgId, children, supportWorkers, 
   );
 }
 
-export function GroupsTab({ groups, setGroups, children, supportWorkers, t, emptyStateMessage }) {
+export function GroupsTab({ groups, setGroups, children, supportWorkers, t, emptyStateMessage, onResetGroups }) {
   const desktopBreakpoint = 1024;
   const [modalForm, setModalForm] = React.useState(null);
   const [modalAuto, setModalAuto] = React.useState(false);
@@ -393,11 +393,30 @@ export function GroupsTab({ groups, setGroups, children, supportWorkers, t, empt
     return () => window.removeEventListener("resize", updateLayoutMode);
   }, [desktopBreakpoint]);
 
+  const confirmAndResetGroups = () => {
+    if (typeof onResetGroups !== "function") {
+      return;
+    }
+
+    const confirmed = typeof window === "undefined"
+      ? true
+      : window.confirm(t("groups.resetConfirm"));
+
+    if (!confirmed) {
+      return;
+    }
+
+    onResetGroups();
+  };
+
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
         <h2 style={{ margin: 0, color: C.text, fontSize: 18, fontWeight: 800 }}>{t("groups.title")}</h2>
         <div style={{ display: "flex", gap: 8 }}>
+          {typeof onResetGroups === "function" ? (
+            <Btn variant="danger" small onClick={confirmAndResetGroups}>{t("groups.reset")}</Btn>
+          ) : null}
           <Btn variant="ghost" small onClick={() => setModalAuto(true)}>{t("groups.auto")}</Btn>
           <Btn onClick={() => setModalForm("new")}>{t("groups.new")}</Btn>
         </div>

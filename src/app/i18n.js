@@ -81,6 +81,8 @@ const messages = {
     "groups.dropHere": "déposer ici",
     "groups.conflictsDetected": "Conflits détectés",
     "groups.moveAnyway": "Déplacer quand même",
+    "groups.reset": "Réinitialiser les groupes",
+    "groups.resetConfirm": "Réinitialiser tous les groupes et sous-groupes ? Les enfants et les accompagnateurs seront conservés.",
 
     "form.group.new": "Nouveau groupe",
     "form.group.edit": "Modifier {name}",
@@ -241,6 +243,8 @@ const messages = {
     "groups.dropHere": "drop here",
     "groups.conflictsDetected": "Conflicts detected",
     "groups.moveAnyway": "Move anyway",
+    "groups.reset": "Reset groups",
+    "groups.resetConfirm": "Reset all groups and subgroups? Children and aides will be kept.",
 
     "form.group.new": "New group",
     "form.group.edit": "Edit {name}",
