@@ -12,6 +12,46 @@ import { Badge, Btn, ConflitRow } from "../ui/atoms";
 import { GroupFormModal } from "./GroupFormModal";
 import { GlobalAutoAssignModal } from "./GlobalAutoAssignModal";
 
+function DragHandleIcon({ size = 11, color = C.faint, style = {} }) {
+  return (
+    <svg
+      viewBox="0 0 12 12"
+      width={size}
+      height={size}
+      aria-hidden="true"
+      focusable="false"
+      style={{ display: "inline-block", color, flexShrink: 0, ...style }}
+    >
+      <circle cx="2" cy="2" r="1" fill="currentColor" />
+      <circle cx="6" cy="2" r="1" fill="currentColor" />
+      <circle cx="10" cy="2" r="1" fill="currentColor" />
+      <circle cx="2" cy="6" r="1" fill="currentColor" />
+      <circle cx="6" cy="6" r="1" fill="currentColor" />
+      <circle cx="10" cy="6" r="1" fill="currentColor" />
+      <circle cx="2" cy="10" r="1" fill="currentColor" />
+      <circle cx="6" cy="10" r="1" fill="currentColor" />
+      <circle cx="10" cy="10" r="1" fill="currentColor" />
+    </svg>
+  );
+}
+
+function DragHandleColumn({ iconSize = 10 }) {
+  return (
+    <div
+      style={{
+        width: 18,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        borderRight: `1px solid ${C.border}`,
+        background: `${C.bg}26`,
+      }}
+    >
+      <DragHandleIcon size={iconSize} color={C.muted} />
+    </div>
+  );
+}
+
 export function moveChildBetweenGroups(prev, enfantId, fromGroupeId, fromSgId, toGroupeId, toSgId) {
   const keepInSourceGroup = fromGroupeId
     && toGroupeId
@@ -88,27 +128,32 @@ function EnfantChip({ enfant, fromGroupeId, fromSgId, children, supportWorkers, 
       style={{
         background: isDragging ? C.accentDim : C.surface,
         borderRadius: 6,
-        padding: "5px 9px",
+        display: "grid",
+        gridTemplateColumns: "18px minmax(0, 1fr)",
+        overflow: "hidden",
         cursor: "grab",
         opacity: isDragging ? 0.4 : 1,
         border: `1px solid ${isDragging ? C.accent : "transparent"}`,
       }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ color: C.text, fontSize: 12, fontWeight: 600 }}>#{" "}{enfant.nom}</span>
-        <span style={{ color: C.muted, fontSize: 11 }}>{`${enfant.age} - 1:${enfant.ratioMax}`}</span>
+      <DragHandleColumn />
+      <div style={{ padding: "5px 9px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ color: C.text, fontSize: 12, fontWeight: 600 }}>{enfant.nom}</span>
+          <span style={{ color: C.muted, fontSize: 11 }}>{`${enfant.age} - 1:${enfant.ratioMax}`}</span>
+        </div>
+        {incompatChildren.length > 0 ? (
+          <div style={{ fontSize: 11, color: C.yellow, marginTop: 2 }}>{`X ${incompatChildren.join(", ")}`}</div>
+        ) : null}
+        {incompatAccos.length > 0 ? (
+          <div style={{ fontSize: 11, color: C.red, marginTop: 2 }}>{`- ${incompatAccos.join(", ")}`}</div>
+        ) : null}
       </div>
-      {incompatChildren.length > 0 ? (
-        <div style={{ fontSize: 11, color: C.yellow, marginTop: 2 }}>{`X ${incompatChildren.join(", ")}`}</div>
-      ) : null}
-      {incompatAccos.length > 0 ? (
-        <div style={{ fontSize: 11, color: C.red, marginTop: 2 }}>{`- ${incompatAccos.join(", ")}`}</div>
-      ) : null}
     </div>
   );
 }
 
-export function GroupsTab({ groups, setGroups, children, supportWorkers, t, emptyStateMessage }) {
+export function GroupsTab({ groups, setGroups, children, supportWorkers, t, emptyStateMessage, onResetGroups }) {
   const desktopBreakpoint = 1024;
   const [modalForm, setModalForm] = React.useState(null);
   const [modalAuto, setModalAuto] = React.useState(false);
@@ -348,11 +393,30 @@ export function GroupsTab({ groups, setGroups, children, supportWorkers, t, empt
     return () => window.removeEventListener("resize", updateLayoutMode);
   }, [desktopBreakpoint]);
 
+  const confirmAndResetGroups = () => {
+    if (typeof onResetGroups !== "function") {
+      return;
+    }
+
+    const confirmed = typeof window === "undefined"
+      ? true
+      : window.confirm(t("groups.resetConfirm"));
+
+    if (!confirmed) {
+      return;
+    }
+
+    onResetGroups();
+  };
+
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
         <h2 style={{ margin: 0, color: C.text, fontSize: 18, fontWeight: 800 }}>{t("groups.title")}</h2>
         <div style={{ display: "flex", gap: 8 }}>
+          {typeof onResetGroups === "function" ? (
+            <Btn variant="danger" small onClick={confirmAndResetGroups}>{t("groups.reset")}</Btn>
+          ) : null}
           <Btn variant="ghost" small onClick={() => setModalAuto(true)}>{t("groups.auto")}</Btn>
           <Btn onClick={() => setModalForm("new")}>{t("groups.new")}</Btn>
         </div>
@@ -472,28 +536,33 @@ export function GroupsTab({ groups, setGroups, children, supportWorkers, t, empt
                         border: `1px solid ${C.border}`,
                         borderLeft: `3px solid ${C.yellow}`,
                         borderRadius: 7,
-                        padding: "7px 11px",
+                        display: "grid",
+                        gridTemplateColumns: "18px minmax(0, 1fr)",
+                        overflow: "hidden",
                         cursor: "grab",
                         opacity: dragging && dragging.id === enfant.id ? 0.5 : 1,
                       }}
                     >
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
-                        <span style={{ color: C.text, fontWeight: 700, fontSize: 12 }}>#{" "}{enfant.nom}</span>
-                        <span style={{ color: C.muted, fontSize: 11 }}>{`${enfant.age} - 1:${enfant.ratioMax}`}</span>
-                      </div>
+                      <DragHandleColumn iconSize={10} />
+                      <div style={{ padding: "7px 11px" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+                          <span style={{ color: C.text, fontWeight: 700, fontSize: 12 }}>{enfant.nom}</span>
+                          <span style={{ color: C.muted, fontSize: 11 }}>{`${enfant.age} - 1:${enfant.ratioMax}`}</span>
+                        </div>
 
-                      {groupesAge.length === 0 ? (
-                        <div style={{ fontSize: 11, color: C.muted }}>{t("groups.noCompatibleGroup", { age: enfant.age })}</div>
-                      ) : null}
-                      {incompatChildren.length > 0 ? (
-                        <div style={{ fontSize: 11, color: C.yellow }}>{`X ${incompatChildren.join(", ")}`}</div>
-                      ) : null}
-                      {incompatAccos.length > 0 ? (
-                        <div style={{ fontSize: 11, color: C.red }}>{`- ${incompatAccos.join(", ")}`}</div>
-                      ) : null}
-                      {groupesAge.length > 0 && incompatChildren.length === 0 && incompatAccos.length === 0 ? (
-                        <div style={{ fontSize: 11, color: C.muted }}>{t("groups.notAssignedYet")}</div>
-                      ) : null}
+                        {groupesAge.length === 0 ? (
+                          <div style={{ fontSize: 11, color: C.muted }}>{t("groups.noCompatibleGroup", { age: enfant.age })}</div>
+                        ) : null}
+                        {incompatChildren.length > 0 ? (
+                          <div style={{ fontSize: 11, color: C.yellow }}>{`X ${incompatChildren.join(", ")}`}</div>
+                        ) : null}
+                        {incompatAccos.length > 0 ? (
+                          <div style={{ fontSize: 11, color: C.red }}>{`- ${incompatAccos.join(", ")}`}</div>
+                        ) : null}
+                        {groupesAge.length > 0 && incompatChildren.length === 0 && incompatAccos.length === 0 ? (
+                          <div style={{ fontSize: 11, color: C.muted }}>{t("groups.notAssignedYet")}</div>
+                        ) : null}
+                      </div>
                     </div>
                   );
                 })}
@@ -610,14 +679,27 @@ export function GroupsTab({ groups, setGroups, children, supportWorkers, t, empt
                           background: isDragging ? C.accentDim : C.surface,
                           border: `1px solid ${C.border}`,
                           borderRadius: 6,
-                          padding: "2px 9px",
+                          display: "grid",
+                          gridTemplateColumns: "14px minmax(0, 1fr)",
+                          overflow: "hidden",
                           fontSize: 11,
                           color: C.muted,
                           cursor: "grab",
                           opacity: isDragging ? 0.4 : 1,
                         }}
                       >
-                        {`# ${acco.nom}${group.responsableId === accoId ? " *" : ""}`}
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            borderRight: `1px solid ${C.border}`,
+                            background: `${C.bg}26`,
+                          }}
+                        >
+                          <DragHandleIcon size={8} color={C.muted} />
+                        </div>
+                        <span style={{ padding: "2px 8px", whiteSpace: "nowrap" }}>{`${acco.nom}${group.responsableId === accoId ? " *" : ""}`}</span>
                       </div>
                     );
                   })}

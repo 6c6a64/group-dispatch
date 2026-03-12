@@ -48,7 +48,7 @@ describe("group-dispatch shell", () => {
   test("renders app shell", async () => {
     renderApp();
     await flush();
-    expect(container.textContent.includes("group-dispatch")).toBe(true);
+    expect(container.textContent.includes("Group Dispatch")).toBe(true);
   });
 
   test("starts empty", async () => {
@@ -83,5 +83,33 @@ describe("group-dispatch shell", () => {
     expect(container.textContent.includes("Overview")).toBe(true);
     expect(container.textContent.includes("Load demo data")).toBe(true);
     expect(container.textContent.includes("Aides")).toBe(true);
+  });
+
+  test("resets groups only with confirmation", async () => {
+    renderApp();
+    await flush();
+    clickButton("Load demo data");
+    await flush();
+    clickButton("Groups");
+    await flush();
+    expect(container.textContent.includes("Groupe Colibri")).toBe(true);
+
+    const originalConfirm = window.confirm;
+
+    window.confirm = jest.fn(() => false);
+    clickButton("Reset");
+    await flush();
+    expect(container.textContent.includes("Groupe Colibri")).toBe(true);
+
+    window.confirm = jest.fn(() => true);
+    clickButton("Reset");
+    await flush();
+    expect(container.textContent.includes("Groupe Colibri")).toBe(false);
+
+    clickButton("Children");
+    await flush();
+    expect(container.textContent.includes("Lea M.")).toBe(true);
+
+    window.confirm = originalConfirm;
   });
 });
