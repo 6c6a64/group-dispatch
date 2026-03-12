@@ -48,7 +48,7 @@ describe("group-dispatch shell", () => {
   test("renders app shell", async () => {
     renderApp();
     await flush();
-    expect(container.textContent.includes("group-dispatch")).toBe(true);
+    expect(container.textContent.includes("Group Dispatch")).toBe(true);
   });
 
   test("starts empty", async () => {
