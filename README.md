@@ -1,70 +1,63 @@
-# Getting Started with Create React App
+# Group Dispatch
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+`Group Dispatch` is a constraint-based assignment app for children and aides.
+It helps place children into groups and subgroups while respecting strict compatibility rules.
 
-## Available Scripts
+## What It Does
 
-In the project directory, you can run:
+- Manages children, aides, groups, and subgroups
+- Validates assignment constraints in real time
+- Shows conflict diagnostics before/after moves
+- Supports automatic assignment with preview
+- Persists shared data with login (Supabase)
 
-### `npm start`
+## Core Constraints
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+- Age-range matching by group
+- Child-child incompatibilities
+- Child-aide incompatibilities
+- Subgroup ratio limits
+- One aide per subgroup
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+## Tech Stack
 
-### `npm test`
+- React (CRA)
+- Supabase (Auth + Postgres + RLS)
+- Vercel (deployment)
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+## Prerequisites
 
-### `npm run build`
+- Node 20+
+- npm 10+
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+## Run Locally
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+```bash
+npm install
+npm start
+```
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+If Supabase env vars are missing, the app runs in local in-memory mode.
 
-### `npm run eject`
+## Supabase Setup (Persistence + Login)
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+1. Create a Supabase project.
+2. In Supabase SQL Editor, run `supabase/migrations/20260312180000_group_dispatch_schema.sql`.
+3. Optional: run `supabase/seed_demo.sql` to load demo data.
+4. Enable Email/Password in `Authentication > Providers`.
+5. Create local env vars:
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+```bash
+cp .env.example .env.local
+```
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+Add:
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+- `REACT_APP_SUPABASE_URL`
+- `REACT_APP_SUPABASE_PUBLISHABLE_KEY`
 
-## Learn More
+## Deploy (Vercel)
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+1. Import the project in Vercel.
+2. Add the same `REACT_APP_*` env vars in Vercel.
+3. Deploy.
