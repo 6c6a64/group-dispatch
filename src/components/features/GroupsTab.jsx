@@ -12,7 +12,51 @@ import { Badge, Btn, ConflitRow } from "../ui/atoms";
 import { GroupFormModal } from "./GroupFormModal";
 import { GlobalAutoAssignModal } from "./GlobalAutoAssignModal";
 import { groupsDataService } from "../../services/groupsDataService";
-import { normalizeSnapshotName, normalizeSnapshotNameKey, sanitizeGroupsSnapshot } from "../../services/groupSnapshots";
+import { cloneGroups, normalizeSnapshotName, sanitizeGroupsSnapshot } from "../../services/groupSnapshots";
+
+const DEFAULT_SNAPSHOT_ID = "__default_draft__";
+const DEFAULT_DRAFT_STORAGE_PREFIX = "groupDispatch.defaultDraft.";
+
+function getDefaultDraftStorageKey(scopeKey) {
+  return `${DEFAULT_DRAFT_STORAGE_PREFIX}${scopeKey || "anon"}`;
+}
+
+function serializeGroups(groups) {
+  try {
+    return JSON.stringify(groups || []);
+  } catch (_error) {
+    return "[]";
+  }
+}
+
+function readDefaultDraft(storageKey) {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(storageKey);
+    if (!raw) {
+      return null;
+    }
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch (_error) {
+    return null;
+  }
+}
+
+function writeDefaultDraft(storageKey, groups) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(storageKey, JSON.stringify(groups || []));
+  } catch (_error) {
+    // Ignore localStorage write failures (private mode/quota).
+  }
+}
 
 function DragHandleIcon({ size = 11, color = C.faint, style = {} }) {
   return (
@@ -155,15 +199,32 @@ function EnfantChip({ enfant, fromGroupeId, fromSgId, children, supportWorkers, 
   );
 }
 
-export function GroupsTab({ groups, setGroups, children, supportWorkers, t, emptyStateMessage, onResetGroups }) {
+export function GroupsTab({
+  groups,
+  setGroups,
+  children,
+  supportWorkers,
+  t,
+  emptyStateMessage,
+  onResetGroups,
+  draftScopeKey = "anon",
+}) {
   const desktopBreakpoint = 1024;
   const [modalForm, setModalForm] = React.useState(null);
   const [modalAuto, setModalAuto] = React.useState(false);
   const [snapshotName, setSnapshotName] = React.useState("");
   const [snapshots, setSnapshots] = React.useState([]);
-  const [selectedSnapshotId, setSelectedSnapshotId] = React.useState("");
+  const [selectedSnapshotId, setSelectedSnapshotId] = React.useState(DEFAULT_SNAPSHOT_ID);
+  const [appliedSnapshotId, setAppliedSnapshotId] = React.useState(DEFAULT_SNAPSHOT_ID);
+  const [appliedSnapshotName, setAppliedSnapshotName] = React.useState("");
+  const [baselineSignature, setBaselineSignature] = React.useState(() => serializeGroups(groups));
   const [snapshotPending, setSnapshotPending] = React.useState(false);
   const [snapshotFeedback, setSnapshotFeedback] = React.useState(null);
+  const draftInitKeyRef = React.useRef("");
+  const defaultDraftStorageKey = React.useMemo(
+    () => getDefaultDraftStorageKey(draftScopeKey),
+    [draftScopeKey],
+  );
 
   const [dragging, setDragging] = React.useState(null);
   const [dropTarget, setDropTarget] = React.useState(null);
@@ -181,6 +242,8 @@ export function GroupsTab({ groups, setGroups, children, supportWorkers, t, empt
     const places = new Set(groups.flatMap((group) => group.enfantIds));
     return children.filter((enfant) => !places.has(enfant.id));
   }, [groups, children]);
+  const currentSignature = React.useMemo(() => serializeGroups(groups), [groups]);
+  const hasUnsavedSnapshotChanges = currentSignature !== baselineSignature;
 
   const loadSnapshots = React.useCallback(async (preferredSnapshotId, isActive = () => true) => {
     const list = await groupsDataService.listGroupSnapshots();
@@ -189,13 +252,19 @@ export function GroupsTab({ groups, setGroups, children, supportWorkers, t, empt
     }
     setSnapshots(list);
     setSelectedSnapshotId((current) => {
+      if (preferredSnapshotId === DEFAULT_SNAPSHOT_ID) {
+        return DEFAULT_SNAPSHOT_ID;
+      }
       if (preferredSnapshotId && list.some((item) => item.id === preferredSnapshotId)) {
         return preferredSnapshotId;
+      }
+      if (current === DEFAULT_SNAPSHOT_ID) {
+        return DEFAULT_SNAPSHOT_ID;
       }
       if (current && list.some((item) => item.id === current)) {
         return current;
       }
-      return list.length > 0 ? list[0].id : "";
+      return DEFAULT_SNAPSHOT_ID;
     });
   }, []);
 
@@ -418,9 +487,52 @@ export function GroupsTab({ groups, setGroups, children, supportWorkers, t, empt
   }, [desktopBreakpoint]);
 
   React.useEffect(() => {
+    if (draftInitKeyRef.current === defaultDraftStorageKey) {
+      return;
+    }
+
+    draftInitKeyRef.current = defaultDraftStorageKey;
+    const savedDraft = readDefaultDraft(defaultDraftStorageKey);
+
+    if (!savedDraft) {
+      writeDefaultDraft(defaultDraftStorageKey, groups);
+      setAppliedSnapshotId(DEFAULT_SNAPSHOT_ID);
+      setAppliedSnapshotName(t("groups.defaultSnapshotName"));
+      setBaselineSignature(serializeGroups(groups));
+      setSelectedSnapshotId(DEFAULT_SNAPSHOT_ID);
+      return;
+    }
+
+    const sanitized = sanitizeGroupsSnapshot(savedDraft, children, supportWorkers);
+    if (serializeGroups(sanitized.groups) !== serializeGroups(groups)) {
+      setGroups(sanitized.groups);
+    }
+    writeDefaultDraft(defaultDraftStorageKey, sanitized.groups);
+
+    setAppliedSnapshotId(DEFAULT_SNAPSHOT_ID);
+    setAppliedSnapshotName(t("groups.defaultSnapshotName"));
+    setBaselineSignature(serializeGroups(sanitized.groups));
+    setSelectedSnapshotId(DEFAULT_SNAPSHOT_ID);
+
+    if (sanitized.removedCount > 0) {
+      setSnapshotFeedback({
+        tone: "warning",
+        text: t("groups.defaultSnapshotSanitized", {
+          count: sanitized.removedCount,
+          suffix: suffixPlural(sanitized.removedCount),
+        }),
+      });
+    }
+  }, [defaultDraftStorageKey, groups, children, supportWorkers, setGroups, t]);
+
+  React.useEffect(() => {
+    writeDefaultDraft(defaultDraftStorageKey, groups);
+  }, [defaultDraftStorageKey, groups]);
+
+  React.useEffect(() => {
     let active = true;
 
-    loadSnapshots(undefined, () => active)
+    loadSnapshots(DEFAULT_SNAPSHOT_ID, () => active)
       .catch((error) => {
         if (!active) {
           return;
@@ -459,19 +571,6 @@ export function GroupsTab({ groups, setGroups, children, supportWorkers, t, empt
       return;
     }
 
-    const hasSameName = snapshots.some((item) => normalizeSnapshotNameKey(item.name) === normalizeSnapshotNameKey(normalizedName));
-    let overwrite = false;
-
-    if (hasSameName) {
-      const confirmed = typeof window === "undefined"
-        ? true
-        : window.confirm(t("groups.snapshotOverwriteConfirm", { name: normalizedName }));
-      if (!confirmed) {
-        return;
-      }
-      overwrite = true;
-    }
-
     setSnapshotPending(true);
     setSnapshotFeedback(null);
 
@@ -479,23 +578,25 @@ export function GroupsTab({ groups, setGroups, children, supportWorkers, t, empt
       const result = await groupsDataService.saveGroupSnapshot({
         name: normalizedName,
         groups,
-        overwrite,
       });
-
-      if (result.status === "exists") {
-        setSnapshotFeedback({ tone: "warning", text: t("groups.snapshotAlreadyExists", { name: normalizedName }) });
-        setSnapshotPending(false);
-        return;
-      }
 
       await loadSnapshots(result.id);
-      setSnapshotName(normalizedName);
-      setSnapshotFeedback({
-        tone: "success",
-        text: overwrite
-          ? t("groups.snapshotOverwritten", { name: result.name })
-          : t("groups.snapshotSaved", { name: result.name }),
-      });
+      setSnapshotName(result.name);
+      setAppliedSnapshotId(result.id);
+      setAppliedSnapshotName(result.name);
+      setBaselineSignature(currentSignature);
+      setSnapshotFeedback(result.copiedFromName
+        ? {
+          tone: "warning",
+          text: t("groups.snapshotSavedAsCopy", {
+            requested: result.copiedFromName,
+            savedAs: result.name,
+          }),
+        }
+        : {
+          tone: "success",
+          text: t("groups.snapshotSaved", { name: result.name }),
+        });
     } catch (error) {
       setSnapshotFeedback({
         tone: "error",
@@ -511,13 +612,59 @@ export function GroupsTab({ groups, setGroups, children, supportWorkers, t, empt
       return;
     }
 
+    if (selectedSnapshotId !== appliedSnapshotId && hasUnsavedSnapshotChanges) {
+      const confirmed = typeof window === "undefined"
+        ? true
+        : window.confirm(
+          t("groups.snapshotUnsavedChangesConfirm", {
+            name: appliedSnapshotName || t("groups.defaultSnapshotName"),
+          }),
+        );
+
+      if (!confirmed) {
+        return;
+      }
+    }
+
     setSnapshotPending(true);
     setSnapshotFeedback(null);
 
     try {
+      if (selectedSnapshotId === DEFAULT_SNAPSHOT_ID) {
+        const savedDraft = readDefaultDraft(defaultDraftStorageKey);
+        const draftGroups = savedDraft || cloneGroups(groups);
+        const sanitizedDraft = sanitizeGroupsSnapshot(draftGroups, children, supportWorkers);
+
+        setGroups(sanitizedDraft.groups);
+        setAppliedSnapshotId(DEFAULT_SNAPSHOT_ID);
+        setAppliedSnapshotName(t("groups.defaultSnapshotName"));
+        setBaselineSignature(serializeGroups(sanitizedDraft.groups));
+
+        if (sanitizedDraft.removedCount > 0) {
+          setSnapshotFeedback({
+            tone: "warning",
+            text: t("groups.snapshotRestoredSanitized", {
+              name: t("groups.defaultSnapshotName"),
+              count: sanitizedDraft.removedCount,
+              suffix: suffixPlural(sanitizedDraft.removedCount),
+            }),
+          });
+        } else {
+          setSnapshotFeedback({
+            tone: "success",
+            text: t("groups.snapshotRestored", { name: t("groups.defaultSnapshotName") }),
+          });
+        }
+        setSnapshotPending(false);
+        return;
+      }
+
       const snapshot = await groupsDataService.restoreGroupSnapshot(selectedSnapshotId);
       const sanitized = sanitizeGroupsSnapshot(snapshot.groups, children, supportWorkers);
       setGroups(sanitized.groups);
+      setAppliedSnapshotId(snapshot.id);
+      setAppliedSnapshotName(snapshot.name);
+      setBaselineSignature(serializeGroups(sanitized.groups));
 
       if (sanitized.removedCount > 0) {
         setSnapshotFeedback({
@@ -545,7 +692,7 @@ export function GroupsTab({ groups, setGroups, children, supportWorkers, t, empt
   };
 
   const deleteSnapshot = async () => {
-    if (!selectedSnapshotId) {
+    if (!selectedSnapshotId || selectedSnapshotId === DEFAULT_SNAPSHOT_ID) {
       return;
     }
 
@@ -565,7 +712,12 @@ export function GroupsTab({ groups, setGroups, children, supportWorkers, t, empt
 
     try {
       await groupsDataService.deleteGroupSnapshot(selectedSnapshotId);
-      await loadSnapshots();
+      await loadSnapshots(DEFAULT_SNAPSHOT_ID);
+      if (appliedSnapshotId === selectedSnapshotId) {
+        setAppliedSnapshotId(DEFAULT_SNAPSHOT_ID);
+        setAppliedSnapshotName(t("groups.defaultSnapshotName"));
+        setBaselineSignature(currentSignature);
+      }
       setSnapshotFeedback({
         tone: "success",
         text: t("groups.snapshotDeleted", { name: selectedName || "-" }),
@@ -640,7 +792,7 @@ export function GroupsTab({ groups, setGroups, children, supportWorkers, t, empt
             data-testid="snapshot-select"
             value={selectedSnapshotId}
             onChange={(event) => setSelectedSnapshotId(event.target.value)}
-            disabled={snapshotPending || snapshots.length === 0}
+            disabled={snapshotPending}
             style={{
               background: C.surface,
               border: `1px solid ${C.border}`,
@@ -652,9 +804,7 @@ export function GroupsTab({ groups, setGroups, children, supportWorkers, t, empt
               fontFamily: "inherit",
             }}
           >
-            {snapshots.length === 0 ? (
-              <option value="">{t("groups.noSnapshots")}</option>
-            ) : null}
+            <option value={DEFAULT_SNAPSHOT_ID}>{t("groups.defaultSnapshotName")}</option>
             {snapshots.map((snapshot) => (
               <option key={snapshot.id} value={snapshot.id}>
                 {snapshot.name}
@@ -672,12 +822,17 @@ export function GroupsTab({ groups, setGroups, children, supportWorkers, t, empt
           <Btn
             small
             variant="danger"
-            disabled={snapshotPending || !selectedSnapshotId}
+            disabled={snapshotPending || !selectedSnapshotId || selectedSnapshotId === DEFAULT_SNAPSHOT_ID}
             onClick={deleteSnapshot}
           >
             {t("groups.deleteSnapshot")}
           </Btn>
         </div>
+        {hasUnsavedSnapshotChanges ? (
+          <div style={{ color: C.yellow, fontSize: 11, marginTop: 8 }}>
+            {t("groups.snapshotUnsavedChangesHint")}
+          </div>
+        ) : null}
       </div>
 
       {snapshotFeedback ? (

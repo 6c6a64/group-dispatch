@@ -425,6 +425,7 @@ export default function GroupDispatchApp() {
                 t={t}
                 emptyStateMessage={isEmptyState ? t("app.emptyState") : ""}
                 onResetGroups={resetGroupsData}
+                draftScopeKey={authUserId || "anon"}
               />
             ) : null}
             {tab === "children" ? (

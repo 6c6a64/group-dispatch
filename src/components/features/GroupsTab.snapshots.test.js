@@ -69,6 +69,7 @@ describe("GroupsTab snapshots", () => {
   };
 
   beforeEach(() => {
+    window.localStorage.clear();
     mockGroupsDataService.listGroupSnapshots.mockReset();
     mockGroupsDataService.saveGroupSnapshot.mockReset();
     mockGroupsDataService.restoreGroupSnapshot.mockReset();
@@ -107,23 +108,20 @@ describe("GroupsTab snapshots", () => {
     expect(mockGroupsDataService.saveGroupSnapshot).toHaveBeenCalledWith({
       name: "Morning setup",
       groups: [],
-      overwrite: false,
     });
 
     const select = container.querySelector('[data-testid="snapshot-select"]');
     expect(select.textContent.includes("Morning setup")).toBe(true);
   });
 
-  test("confirms overwrite when snapshot name already exists", async () => {
+  test("saves as a copy name when requested name already exists", async () => {
     mockGroupsDataService.listGroupSnapshots.mockResolvedValue([{ id: "s1", name: "Baseline" }]);
     mockGroupsDataService.saveGroupSnapshot.mockResolvedValue({
-      status: "updated",
-      id: "s1",
-      name: "Baseline",
+      status: "created",
+      id: "s2",
+      name: "baseline (copy)",
+      copiedFromName: "baseline",
     });
-
-    const originalConfirm = window.confirm;
-    window.confirm = jest.fn(() => true);
 
     renderTab();
     await flush(2);
@@ -132,14 +130,11 @@ describe("GroupsTab snapshots", () => {
     clickButton("Save snapshot");
     await flush(2);
 
-    expect(window.confirm).toHaveBeenCalledTimes(1);
     expect(mockGroupsDataService.saveGroupSnapshot).toHaveBeenCalledWith({
       name: "baseline",
       groups: [],
-      overwrite: true,
     });
-
-    window.confirm = originalConfirm;
+    expect(container.textContent.includes("saved as")).toBe(true);
   });
 
   test("restores a snapshot and sanitizes stale references", async () => {
@@ -175,6 +170,7 @@ describe("GroupsTab snapshots", () => {
     });
     await flush(2);
 
+    setFieldValue('[data-testid="snapshot-select"]', "s1");
     clickButton("Restore snapshot");
     await flush(2);
 
@@ -207,6 +203,7 @@ describe("GroupsTab snapshots", () => {
     renderTab();
     await flush(2);
 
+    setFieldValue('[data-testid="snapshot-select"]', "s1");
     clickButton("Delete snapshot");
     await flush(2);
 

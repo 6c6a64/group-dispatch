@@ -392,17 +392,44 @@ async function loadStateFromSupabase(client) {
   };
 }
 
-async function loadSnapshotByName(client, normalizedNameKey) {
+async function listSnapshotNames(client) {
   const rows = await fetchRows(
-    "group_layout_snapshots.selectByName",
+    "group_layout_snapshots.selectNames",
     client
       .from("group_layout_snapshots")
-      .select("id, name")
-      .eq("name_normalized", normalizedNameKey)
-      .limit(1),
+      .select("name"),
   );
 
-  return rows[0] || null;
+  return rows
+    .map((row) => normalizeSnapshotName(row.name))
+    .filter(Boolean);
+}
+
+function buildCopySnapshotName(baseName, existingNames) {
+  const normalizedExisting = new Set(existingNames.map((name) => normalizeSnapshotNameKey(name)));
+  const baseKey = normalizeSnapshotNameKey(baseName);
+
+  if (!normalizedExisting.has(baseKey)) {
+    return {
+      name: baseName,
+      copiedFromName: null,
+    };
+  }
+
+  let index = 1;
+  while (index < 5000) {
+    const candidate = index === 1 ? `${baseName} (copy)` : `${baseName} (copy ${index})`;
+    const candidateKey = normalizeSnapshotNameKey(candidate);
+    if (!normalizedExisting.has(candidateKey)) {
+      return {
+        name: candidate,
+        copiedFromName: baseName,
+      };
+    }
+    index += 1;
+  }
+
+  throw new Error("Unable to generate a unique snapshot copy name.");
 }
 
 function schedulePersist() {
@@ -508,7 +535,7 @@ export const groupsDataService = {
     }));
   },
 
-  async saveGroupSnapshot({ name, groups, overwrite = false }) {
+  async saveGroupSnapshot({ name, groups }) {
     const normalizedName = normalizeSnapshotName(name);
     if (!normalizedName) {
       throw new Error("Snapshot name is required.");
@@ -523,48 +550,19 @@ export const groupsDataService = {
       throw new Error("You must be signed in to save snapshots.");
     }
 
-    const nameKey = normalizeSnapshotNameKey(normalizedName);
-    const existing = await loadSnapshotByName(client, nameKey);
-
-    if (existing && !overwrite) {
-      return {
-        status: "exists",
-        id: existing.id,
-        name: existing.name,
-      };
-    }
-
     const {
       data: { user },
     } = await client.auth.getUser();
 
+    const existingNames = await listSnapshotNames(client);
+    const resolvedName = buildCopySnapshotName(normalizedName, existingNames);
     const payload = {
-      name: normalizedName,
+      name: resolvedName.name,
       groups_state: cloneGroups(groups),
-      updated_at: new Date().toISOString(),
     };
 
     if (user && user.id) {
       payload.created_by = user.id;
-    }
-
-    if (existing) {
-      const { data, error } = await client
-        .from("group_layout_snapshots")
-        .update(payload)
-        .eq("id", existing.id)
-        .select("id, name")
-        .single();
-
-      if (error) {
-        throw new Error(`group_layout_snapshots.update: ${error.message}`);
-      }
-
-      return {
-        status: "updated",
-        id: data.id,
-        name: data.name,
-      };
     }
 
     const { data, error } = await client
@@ -581,6 +579,7 @@ export const groupsDataService = {
       status: "created",
       id: data.id,
       name: data.name,
+      copiedFromName: resolvedName.copiedFromName,
     };
   },
 
