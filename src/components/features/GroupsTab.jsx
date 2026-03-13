@@ -11,6 +11,8 @@ import { suffixPlural } from "../../app/i18n";
 import { Badge, Btn, ConflitRow } from "../ui/atoms";
 import { GroupFormModal } from "./GroupFormModal";
 import { GlobalAutoAssignModal } from "./GlobalAutoAssignModal";
+import { groupsDataService } from "../../services/groupsDataService";
+import { normalizeSnapshotName, normalizeSnapshotNameKey, sanitizeGroupsSnapshot } from "../../services/groupSnapshots";
 
 function DragHandleIcon({ size = 11, color = C.faint, style = {} }) {
   return (
@@ -157,6 +159,11 @@ export function GroupsTab({ groups, setGroups, children, supportWorkers, t, empt
   const desktopBreakpoint = 1024;
   const [modalForm, setModalForm] = React.useState(null);
   const [modalAuto, setModalAuto] = React.useState(false);
+  const [snapshotName, setSnapshotName] = React.useState("");
+  const [snapshots, setSnapshots] = React.useState([]);
+  const [selectedSnapshotId, setSelectedSnapshotId] = React.useState("");
+  const [snapshotPending, setSnapshotPending] = React.useState(false);
+  const [snapshotFeedback, setSnapshotFeedback] = React.useState(null);
 
   const [dragging, setDragging] = React.useState(null);
   const [dropTarget, setDropTarget] = React.useState(null);
@@ -174,6 +181,23 @@ export function GroupsTab({ groups, setGroups, children, supportWorkers, t, empt
     const places = new Set(groups.flatMap((group) => group.enfantIds));
     return children.filter((enfant) => !places.has(enfant.id));
   }, [groups, children]);
+
+  const loadSnapshots = React.useCallback(async (preferredSnapshotId, isActive = () => true) => {
+    const list = await groupsDataService.listGroupSnapshots();
+    if (!isActive()) {
+      return;
+    }
+    setSnapshots(list);
+    setSelectedSnapshotId((current) => {
+      if (preferredSnapshotId && list.some((item) => item.id === preferredSnapshotId)) {
+        return preferredSnapshotId;
+      }
+      if (current && list.some((item) => item.id === current)) {
+        return current;
+      }
+      return list.length > 0 ? list[0].id : "";
+    });
+  }, []);
 
   const startDragEnfant = (enfant, fromGroupeId, fromSgId) => {
     const compat = calcCompatibilite(enfant, groups, children, supportWorkers, t);
@@ -393,6 +417,25 @@ export function GroupsTab({ groups, setGroups, children, supportWorkers, t, empt
     return () => window.removeEventListener("resize", updateLayoutMode);
   }, [desktopBreakpoint]);
 
+  React.useEffect(() => {
+    let active = true;
+
+    loadSnapshots(undefined, () => active)
+      .catch((error) => {
+        if (!active) {
+          return;
+        }
+        setSnapshotFeedback({
+          tone: "error",
+          text: t("groups.snapshotLoadError", { message: error && error.message ? error.message : String(error) }),
+        });
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [loadSnapshots, t]);
+
   const confirmAndResetGroups = () => {
     if (typeof onResetGroups !== "function") {
       return;
@@ -409,18 +452,202 @@ export function GroupsTab({ groups, setGroups, children, supportWorkers, t, empt
     onResetGroups();
   };
 
+  const saveSnapshot = async () => {
+    const normalizedName = normalizeSnapshotName(snapshotName);
+    if (!normalizedName) {
+      setSnapshotFeedback({ tone: "error", text: t("groups.snapshotNameRequired") });
+      return;
+    }
+
+    const hasSameName = snapshots.some((item) => normalizeSnapshotNameKey(item.name) === normalizeSnapshotNameKey(normalizedName));
+    let overwrite = false;
+
+    if (hasSameName) {
+      const confirmed = typeof window === "undefined"
+        ? true
+        : window.confirm(t("groups.snapshotOverwriteConfirm", { name: normalizedName }));
+      if (!confirmed) {
+        return;
+      }
+      overwrite = true;
+    }
+
+    setSnapshotPending(true);
+    setSnapshotFeedback(null);
+
+    try {
+      const result = await groupsDataService.saveGroupSnapshot({
+        name: normalizedName,
+        groups,
+        overwrite,
+      });
+
+      if (result.status === "exists") {
+        setSnapshotFeedback({ tone: "warning", text: t("groups.snapshotAlreadyExists", { name: normalizedName }) });
+        setSnapshotPending(false);
+        return;
+      }
+
+      await loadSnapshots(result.id);
+      setSnapshotName(normalizedName);
+      setSnapshotFeedback({
+        tone: "success",
+        text: overwrite
+          ? t("groups.snapshotOverwritten", { name: result.name })
+          : t("groups.snapshotSaved", { name: result.name }),
+      });
+    } catch (error) {
+      setSnapshotFeedback({
+        tone: "error",
+        text: t("groups.snapshotSaveError", { message: error && error.message ? error.message : String(error) }),
+      });
+    } finally {
+      setSnapshotPending(false);
+    }
+  };
+
+  const restoreSnapshot = async () => {
+    if (!selectedSnapshotId) {
+      return;
+    }
+
+    setSnapshotPending(true);
+    setSnapshotFeedback(null);
+
+    try {
+      const snapshot = await groupsDataService.restoreGroupSnapshot(selectedSnapshotId);
+      const sanitized = sanitizeGroupsSnapshot(snapshot.groups, children, supportWorkers);
+      setGroups(sanitized.groups);
+
+      if (sanitized.removedCount > 0) {
+        setSnapshotFeedback({
+          tone: "warning",
+          text: t("groups.snapshotRestoredSanitized", {
+            name: snapshot.name,
+            count: sanitized.removedCount,
+            suffix: suffixPlural(sanitized.removedCount),
+          }),
+        });
+      } else {
+        setSnapshotFeedback({
+          tone: "success",
+          text: t("groups.snapshotRestored", { name: snapshot.name }),
+        });
+      }
+    } catch (error) {
+      setSnapshotFeedback({
+        tone: "error",
+        text: t("groups.snapshotRestoreError", { message: error && error.message ? error.message : String(error) }),
+      });
+    } finally {
+      setSnapshotPending(false);
+    }
+  };
+
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          gap: 12,
+          marginBottom: 12,
+          flexWrap: "wrap",
+        }}
+      >
         <h2 style={{ margin: 0, color: C.text, fontSize: 18, fontWeight: 800 }}>{t("groups.title")}</h2>
-        <div style={{ display: "flex", gap: 8 }}>
-          {typeof onResetGroups === "function" ? (
-            <Btn variant="danger" small onClick={confirmAndResetGroups}>{t("groups.reset")}</Btn>
-          ) : null}
-          <Btn variant="ghost" small onClick={() => setModalAuto(true)}>{t("groups.auto")}</Btn>
-          <Btn onClick={() => setModalForm("new")}>{t("groups.new")}</Btn>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8, flex: "1 1 600px" }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "flex-end", flexWrap: "wrap" }}>
+            <input
+              data-testid="snapshot-name-input"
+              type="text"
+              value={snapshotName}
+              onChange={(event) => setSnapshotName(event.target.value)}
+              placeholder={t("groups.snapshotNamePlaceholder")}
+              style={{
+                background: C.surface,
+                border: `1px solid ${C.border}`,
+                borderRadius: 7,
+                padding: "5px 10px",
+                color: C.text,
+                fontSize: 12,
+                minWidth: 160,
+                fontFamily: "inherit",
+              }}
+            />
+            <Btn small variant="ghost" disabled={snapshotPending} onClick={saveSnapshot}>
+              {t("groups.saveSnapshot")}
+            </Btn>
+            <select
+              data-testid="snapshot-select"
+              value={selectedSnapshotId}
+              onChange={(event) => setSelectedSnapshotId(event.target.value)}
+              disabled={snapshotPending || snapshots.length === 0}
+              style={{
+                background: C.surface,
+                border: `1px solid ${C.border}`,
+                borderRadius: 7,
+                padding: "5px 10px",
+                color: selectedSnapshotId ? C.text : C.muted,
+                fontSize: 12,
+                minWidth: 180,
+                fontFamily: "inherit",
+              }}
+            >
+              {snapshots.length === 0 ? (
+                <option value="">{t("groups.noSnapshots")}</option>
+              ) : null}
+              {snapshots.map((snapshot) => (
+                <option key={snapshot.id} value={snapshot.id}>
+                  {snapshot.name}
+                </option>
+              ))}
+            </select>
+            <Btn
+              small
+              variant="ghost"
+              disabled={snapshotPending || !selectedSnapshotId}
+              onClick={restoreSnapshot}
+            >
+              {t("groups.restoreSnapshot")}
+            </Btn>
+            {typeof onResetGroups === "function" ? (
+              <Btn variant="danger" small onClick={confirmAndResetGroups}>{t("groups.reset")}</Btn>
+            ) : null}
+            <Btn variant="ghost" small onClick={() => setModalAuto(true)}>{t("groups.auto")}</Btn>
+            <Btn onClick={() => setModalForm("new")}>{t("groups.new")}</Btn>
+          </div>
         </div>
       </div>
+
+      {snapshotFeedback ? (
+        <div
+          style={{
+            background: snapshotFeedback.tone === "error"
+              ? `${C.red}14`
+              : snapshotFeedback.tone === "warning"
+                ? `${C.yellow}14`
+                : `${C.green}14`,
+            border: `1px solid ${snapshotFeedback.tone === "error"
+              ? `${C.red}44`
+              : snapshotFeedback.tone === "warning"
+                ? `${C.yellow}44`
+                : `${C.green}44`}`,
+            color: snapshotFeedback.tone === "error"
+              ? C.red
+              : snapshotFeedback.tone === "warning"
+                ? C.yellow
+                : C.green,
+            borderRadius: 8,
+            padding: "8px 10px",
+            fontSize: 12,
+            marginBottom: 12,
+          }}
+        >
+          {snapshotFeedback.text}
+        </div>
+      ) : null}
 
       {dropWarning ? (
         <div

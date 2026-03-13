@@ -1,4 +1,5 @@
 import { cloneState, createDemoState, createEmptyState } from "../domain/demoData";
+import { cloneGroups, normalizeSnapshotName, normalizeSnapshotNameKey } from "./groupSnapshots";
 import { getSupabaseClient, isSupabaseConfigured } from "./supabaseClient";
 
 const SAVE_DEBOUNCE_MS = 700;
@@ -391,6 +392,19 @@ async function loadStateFromSupabase(client) {
   };
 }
 
+async function loadSnapshotByName(client, normalizedNameKey) {
+  const rows = await fetchRows(
+    "group_layout_snapshots.selectByName",
+    client
+      .from("group_layout_snapshots")
+      .select("id, name")
+      .eq("name_normalized", normalizedNameKey)
+      .limit(1),
+  );
+
+  return rows[0] || null;
+}
+
 function schedulePersist() {
   if (debounceTimer) {
     clearTimeout(debounceTimer);
@@ -465,5 +479,139 @@ export const groupsDataService = {
 
     pendingState = normalizeState(state);
     return schedulePersist();
+  },
+
+  async listGroupSnapshots() {
+    if (!isSupabaseConfigured()) {
+      return [];
+    }
+
+    const client = await getAuthenticatedClient();
+    if (!client) {
+      return [];
+    }
+
+    const rows = await fetchRows(
+      "group_layout_snapshots.select",
+      client
+        .from("group_layout_snapshots")
+        .select("id, name, created_at, updated_at")
+        .order("updated_at", { ascending: false })
+        .order("name", { ascending: true }),
+    );
+
+    return rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }));
+  },
+
+  async saveGroupSnapshot({ name, groups, overwrite = false }) {
+    const normalizedName = normalizeSnapshotName(name);
+    if (!normalizedName) {
+      throw new Error("Snapshot name is required.");
+    }
+
+    if (!isSupabaseConfigured()) {
+      throw new Error("Supabase is not configured.");
+    }
+
+    const client = await getAuthenticatedClient();
+    if (!client) {
+      throw new Error("You must be signed in to save snapshots.");
+    }
+
+    const nameKey = normalizeSnapshotNameKey(normalizedName);
+    const existing = await loadSnapshotByName(client, nameKey);
+
+    if (existing && !overwrite) {
+      return {
+        status: "exists",
+        id: existing.id,
+        name: existing.name,
+      };
+    }
+
+    const {
+      data: { user },
+    } = await client.auth.getUser();
+
+    const payload = {
+      name: normalizedName,
+      groups_state: cloneGroups(groups),
+      updated_at: new Date().toISOString(),
+    };
+
+    if (user && user.id) {
+      payload.created_by = user.id;
+    }
+
+    if (existing) {
+      const { data, error } = await client
+        .from("group_layout_snapshots")
+        .update(payload)
+        .eq("id", existing.id)
+        .select("id, name")
+        .single();
+
+      if (error) {
+        throw new Error(`group_layout_snapshots.update: ${error.message}`);
+      }
+
+      return {
+        status: "updated",
+        id: data.id,
+        name: data.name,
+      };
+    }
+
+    const { data, error } = await client
+      .from("group_layout_snapshots")
+      .insert(payload)
+      .select("id, name")
+      .single();
+
+    if (error) {
+      throw new Error(`group_layout_snapshots.insert: ${error.message}`);
+    }
+
+    return {
+      status: "created",
+      id: data.id,
+      name: data.name,
+    };
+  },
+
+  async restoreGroupSnapshot(snapshotId) {
+    if (!snapshotId) {
+      throw new Error("Snapshot id is required.");
+    }
+
+    if (!isSupabaseConfigured()) {
+      throw new Error("Supabase is not configured.");
+    }
+
+    const client = await getAuthenticatedClient();
+    if (!client) {
+      throw new Error("You must be signed in to restore snapshots.");
+    }
+
+    const { data, error } = await client
+      .from("group_layout_snapshots")
+      .select("id, name, groups_state")
+      .eq("id", snapshotId)
+      .single();
+
+    if (error) {
+      throw new Error(`group_layout_snapshots.selectOne: ${error.message}`);
+    }
+
+    return {
+      id: data.id,
+      name: data.name,
+      groups: cloneGroups(data.groups_state),
+    };
   },
 };
