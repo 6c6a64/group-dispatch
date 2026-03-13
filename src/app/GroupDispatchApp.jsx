@@ -434,6 +434,7 @@ export default function GroupDispatchApp() {
                 setChildren={setChildren}
                 supportWorkers={supportWorkers}
                 groups={groups}
+                setGroups={setGroups}
                 t={t}
                 emptyStateMessage={isEmptyState ? t("app.emptyState") : ""}
               />
@@ -443,6 +444,8 @@ export default function GroupDispatchApp() {
                 supportWorkers={supportWorkers}
                 setSupportWorkers={setSupportWorkers}
                 groups={groups}
+                setGroups={setGroups}
+                children={children}
                 t={t}
                 emptyStateMessage={isEmptyState ? t("app.emptyState") : ""}
               />
