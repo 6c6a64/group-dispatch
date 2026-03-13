@@ -101,7 +101,7 @@ describe("GroupsTab snapshots", () => {
     await flush(2);
 
     setFieldValue('[data-testid="snapshot-name-input"]', "Morning setup");
-    clickButton("Save groups");
+    clickButton("Save snapshot");
     await flush(3);
 
     expect(mockGroupsDataService.saveGroupSnapshot).toHaveBeenCalledWith({
@@ -129,7 +129,7 @@ describe("GroupsTab snapshots", () => {
     await flush(2);
 
     setFieldValue('[data-testid="snapshot-name-input"]', " baseline ");
-    clickButton("Save groups");
+    clickButton("Save snapshot");
     await flush(2);
 
     expect(window.confirm).toHaveBeenCalledTimes(1);
@@ -175,7 +175,7 @@ describe("GroupsTab snapshots", () => {
     });
     await flush(2);
 
-    clickButton("Restore");
+    clickButton("Restore snapshot");
     await flush(2);
 
     expect(mockGroupsDataService.restoreGroupSnapshot).toHaveBeenCalledWith("s1");
@@ -207,7 +207,7 @@ describe("GroupsTab snapshots", () => {
     renderTab();
     await flush(2);
 
-    clickButton("Delete");
+    clickButton("Delete snapshot");
     await flush(2);
 
     expect(window.confirm).toHaveBeenCalledTimes(1);

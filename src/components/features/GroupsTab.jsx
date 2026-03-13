@@ -586,82 +586,97 @@ export function GroupsTab({ groups, setGroups, children, supportWorkers, t, empt
         style={{
           display: "flex",
           justifyContent: "space-between",
-          alignItems: "flex-start",
+          alignItems: "center",
           gap: 12,
           marginBottom: 12,
           flexWrap: "wrap",
         }}
       >
         <h2 style={{ margin: 0, color: C.text, fontSize: 18, fontWeight: 800 }}>{t("groups.title")}</h2>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8, flex: "1 1 600px" }}>
-          <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "flex-end", flexWrap: "wrap" }}>
-            <input
-              data-testid="snapshot-name-input"
-              type="text"
-              value={snapshotName}
-              onChange={(event) => setSnapshotName(event.target.value)}
-              placeholder={t("groups.snapshotNamePlaceholder")}
-              style={{
-                background: C.surface,
-                border: `1px solid ${C.border}`,
-                borderRadius: 7,
-                padding: "5px 10px",
-                color: C.text,
-                fontSize: 12,
-                minWidth: 160,
-                fontFamily: "inherit",
-              }}
-            />
-            <Btn small variant="ghost" disabled={snapshotPending} onClick={saveSnapshot}>
-              {t("groups.saveSnapshot")}
-            </Btn>
-            <select
-              data-testid="snapshot-select"
-              value={selectedSnapshotId}
-              onChange={(event) => setSelectedSnapshotId(event.target.value)}
-              disabled={snapshotPending || snapshots.length === 0}
-              style={{
-                background: C.surface,
-                border: `1px solid ${C.border}`,
-                borderRadius: 7,
-                padding: "5px 10px",
-                color: selectedSnapshotId ? C.text : C.muted,
-                fontSize: 12,
-                minWidth: 180,
-                fontFamily: "inherit",
-              }}
-            >
-              {snapshots.length === 0 ? (
-                <option value="">{t("groups.noSnapshots")}</option>
-              ) : null}
-              {snapshots.map((snapshot) => (
-                <option key={snapshot.id} value={snapshot.id}>
-                  {snapshot.name}
-                </option>
-              ))}
-            </select>
-            <Btn
-              small
-              variant="ghost"
-              disabled={snapshotPending || !selectedSnapshotId}
-              onClick={restoreSnapshot}
-            >
-              {t("groups.restoreSnapshot")}
-            </Btn>
-            <Btn
-              small
-              variant="danger"
-              disabled={snapshotPending || !selectedSnapshotId}
-              onClick={deleteSnapshot}
-            >
-              {t("groups.deleteSnapshot")}
-            </Btn>
-            {typeof onResetGroups === "function" ? (
-              <Btn variant="danger" small onClick={confirmAndResetGroups}>{t("groups.reset")}</Btn>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          {typeof onResetGroups === "function" ? (
+            <Btn variant="danger" small onClick={confirmAndResetGroups}>{t("groups.reset")}</Btn>
+          ) : null}
+          <Btn variant="ghost" small onClick={() => setModalAuto(true)}>{t("groups.auto")}</Btn>
+          <Btn onClick={() => setModalForm("new")}>{t("groups.new")}</Btn>
+        </div>
+      </div>
+
+      <div
+        style={{
+          background: C.card,
+          border: `1px solid ${C.border}`,
+          borderRadius: 10,
+          padding: "10px 12px",
+          marginBottom: 12,
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+          <div style={{ color: C.text, fontSize: 12, fontWeight: 700 }}>{t("groups.snapshotSectionTitle")}</div>
+          <div style={{ color: C.muted, fontSize: 11 }}>{t("groups.snapshotSectionHint")}</div>
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <input
+            data-testid="snapshot-name-input"
+            type="text"
+            value={snapshotName}
+            onChange={(event) => setSnapshotName(event.target.value)}
+            placeholder={t("groups.snapshotNamePlaceholder")}
+            style={{
+              background: C.surface,
+              border: `1px solid ${C.border}`,
+              borderRadius: 7,
+              padding: "5px 10px",
+              color: C.text,
+              fontSize: 12,
+              minWidth: 170,
+              fontFamily: "inherit",
+            }}
+          />
+          <Btn small variant="ghost" disabled={snapshotPending} onClick={saveSnapshot}>
+            {t("groups.saveSnapshot")}
+          </Btn>
+          <select
+            data-testid="snapshot-select"
+            value={selectedSnapshotId}
+            onChange={(event) => setSelectedSnapshotId(event.target.value)}
+            disabled={snapshotPending || snapshots.length === 0}
+            style={{
+              background: C.surface,
+              border: `1px solid ${C.border}`,
+              borderRadius: 7,
+              padding: "5px 10px",
+              color: selectedSnapshotId ? C.text : C.muted,
+              fontSize: 12,
+              minWidth: 190,
+              fontFamily: "inherit",
+            }}
+          >
+            {snapshots.length === 0 ? (
+              <option value="">{t("groups.noSnapshots")}</option>
             ) : null}
-            <Btn variant="ghost" small onClick={() => setModalAuto(true)}>{t("groups.auto")}</Btn>
-            <Btn onClick={() => setModalForm("new")}>{t("groups.new")}</Btn>
-          </div>
+            {snapshots.map((snapshot) => (
+              <option key={snapshot.id} value={snapshot.id}>
+                {snapshot.name}
+              </option>
+            ))}
+          </select>
+          <Btn
+            small
+            variant="ghost"
+            disabled={snapshotPending || !selectedSnapshotId}
+            onClick={restoreSnapshot}
+          >
+            {t("groups.restoreSnapshot")}
+          </Btn>
+          <Btn
+            small
+            variant="danger"
+            disabled={snapshotPending || !selectedSnapshotId}
+            onClick={deleteSnapshot}
+          >
+            {t("groups.deleteSnapshot")}
+          </Btn>
         </div>
       </div>
 
