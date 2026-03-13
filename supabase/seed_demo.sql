@@ -1,6 +1,7 @@
 -- Optional seed for group-dispatch demo dataset
 
 truncate table
+  public.group_layout_snapshots,
   public.sousgroupes_enfants,
   public.sousgroupes,
   public.groupes_enfants,

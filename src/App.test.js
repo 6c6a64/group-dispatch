@@ -33,6 +33,7 @@ describe("group-dispatch shell", () => {
   };
 
   beforeEach(() => {
+    window.localStorage.clear();
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);

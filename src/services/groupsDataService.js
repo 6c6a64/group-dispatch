@@ -1,4 +1,5 @@
 import { cloneState, createDemoState, createEmptyState } from "../domain/demoData";
+import { cloneGroups, normalizeSnapshotName, normalizeSnapshotNameKey } from "./groupSnapshots";
 import { getSupabaseClient, isSupabaseConfigured } from "./supabaseClient";
 
 const SAVE_DEBOUNCE_MS = 700;
@@ -391,6 +392,46 @@ async function loadStateFromSupabase(client) {
   };
 }
 
+async function listSnapshotNames(client) {
+  const rows = await fetchRows(
+    "group_layout_snapshots.selectNames",
+    client
+      .from("group_layout_snapshots")
+      .select("name"),
+  );
+
+  return rows
+    .map((row) => normalizeSnapshotName(row.name))
+    .filter(Boolean);
+}
+
+function buildCopySnapshotName(baseName, existingNames) {
+  const normalizedExisting = new Set(existingNames.map((name) => normalizeSnapshotNameKey(name)));
+  const baseKey = normalizeSnapshotNameKey(baseName);
+
+  if (!normalizedExisting.has(baseKey)) {
+    return {
+      name: baseName,
+      copiedFromName: null,
+    };
+  }
+
+  let index = 1;
+  while (index < 5000) {
+    const candidate = index === 1 ? `${baseName} (copy)` : `${baseName} (copy ${index})`;
+    const candidateKey = normalizeSnapshotNameKey(candidate);
+    if (!normalizedExisting.has(candidateKey)) {
+      return {
+        name: candidate,
+        copiedFromName: baseName,
+      };
+    }
+    index += 1;
+  }
+
+  throw new Error("Unable to generate a unique snapshot copy name.");
+}
+
 function schedulePersist() {
   if (debounceTimer) {
     clearTimeout(debounceTimer);
@@ -465,5 +506,137 @@ export const groupsDataService = {
 
     pendingState = normalizeState(state);
     return schedulePersist();
+  },
+
+  async listGroupSnapshots() {
+    if (!isSupabaseConfigured()) {
+      return [];
+    }
+
+    const client = await getAuthenticatedClient();
+    if (!client) {
+      return [];
+    }
+
+    const rows = await fetchRows(
+      "group_layout_snapshots.select",
+      client
+        .from("group_layout_snapshots")
+        .select("id, name, created_at, updated_at")
+        .order("updated_at", { ascending: false })
+        .order("name", { ascending: true }),
+    );
+
+    return rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }));
+  },
+
+  async saveGroupSnapshot({ name, groups }) {
+    const normalizedName = normalizeSnapshotName(name);
+    if (!normalizedName) {
+      throw new Error("Snapshot name is required.");
+    }
+
+    if (!isSupabaseConfigured()) {
+      throw new Error("Supabase is not configured.");
+    }
+
+    const client = await getAuthenticatedClient();
+    if (!client) {
+      throw new Error("You must be signed in to save snapshots.");
+    }
+
+    const {
+      data: { user },
+    } = await client.auth.getUser();
+
+    const existingNames = await listSnapshotNames(client);
+    const resolvedName = buildCopySnapshotName(normalizedName, existingNames);
+    const payload = {
+      name: resolvedName.name,
+      groups_state: cloneGroups(groups),
+    };
+
+    if (user && user.id) {
+      payload.created_by = user.id;
+    }
+
+    const { data, error } = await client
+      .from("group_layout_snapshots")
+      .insert(payload)
+      .select("id, name")
+      .single();
+
+    if (error) {
+      throw new Error(`group_layout_snapshots.insert: ${error.message}`);
+    }
+
+    return {
+      status: "created",
+      id: data.id,
+      name: data.name,
+      copiedFromName: resolvedName.copiedFromName,
+    };
+  },
+
+  async restoreGroupSnapshot(snapshotId) {
+    if (!snapshotId) {
+      throw new Error("Snapshot id is required.");
+    }
+
+    if (!isSupabaseConfigured()) {
+      throw new Error("Supabase is not configured.");
+    }
+
+    const client = await getAuthenticatedClient();
+    if (!client) {
+      throw new Error("You must be signed in to restore snapshots.");
+    }
+
+    const { data, error } = await client
+      .from("group_layout_snapshots")
+      .select("id, name, groups_state")
+      .eq("id", snapshotId)
+      .single();
+
+    if (error) {
+      throw new Error(`group_layout_snapshots.selectOne: ${error.message}`);
+    }
+
+    return {
+      id: data.id,
+      name: data.name,
+      groups: cloneGroups(data.groups_state),
+    };
+  },
+
+  async deleteGroupSnapshot(snapshotId) {
+    if (!snapshotId) {
+      throw new Error("Snapshot id is required.");
+    }
+
+    if (!isSupabaseConfigured()) {
+      throw new Error("Supabase is not configured.");
+    }
+
+    const client = await getAuthenticatedClient();
+    if (!client) {
+      throw new Error("You must be signed in to delete snapshots.");
+    }
+
+    const { error } = await client
+      .from("group_layout_snapshots")
+      .delete()
+      .eq("id", snapshotId);
+
+    if (error) {
+      throw new Error(`group_layout_snapshots.delete: ${error.message}`);
+    }
+
+    return undefined;
   },
 };

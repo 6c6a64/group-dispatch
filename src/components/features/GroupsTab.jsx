@@ -11,6 +11,52 @@ import { suffixPlural } from "../../app/i18n";
 import { Badge, Btn, ConflitRow } from "../ui/atoms";
 import { GroupFormModal } from "./GroupFormModal";
 import { GlobalAutoAssignModal } from "./GlobalAutoAssignModal";
+import { groupsDataService } from "../../services/groupsDataService";
+import { cloneGroups, normalizeSnapshotName, sanitizeGroupsSnapshot } from "../../services/groupSnapshots";
+
+const DEFAULT_SNAPSHOT_ID = "__default_draft__";
+const DEFAULT_DRAFT_STORAGE_PREFIX = "groupDispatch.defaultDraft.";
+
+function getDefaultDraftStorageKey(scopeKey) {
+  return `${DEFAULT_DRAFT_STORAGE_PREFIX}${scopeKey || "anon"}`;
+}
+
+function serializeGroups(groups) {
+  try {
+    return JSON.stringify(groups || []);
+  } catch (_error) {
+    return "[]";
+  }
+}
+
+function readDefaultDraft(storageKey) {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(storageKey);
+    if (!raw) {
+      return null;
+    }
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch (_error) {
+    return null;
+  }
+}
+
+function writeDefaultDraft(storageKey, groups) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(storageKey, JSON.stringify(groups || []));
+  } catch (_error) {
+    // Ignore localStorage write failures (private mode/quota).
+  }
+}
 
 function DragHandleIcon({ size = 11, color = C.faint, style = {} }) {
   return (
@@ -153,10 +199,32 @@ function EnfantChip({ enfant, fromGroupeId, fromSgId, children, supportWorkers, 
   );
 }
 
-export function GroupsTab({ groups, setGroups, children, supportWorkers, t, emptyStateMessage, onResetGroups }) {
+export function GroupsTab({
+  groups,
+  setGroups,
+  children,
+  supportWorkers,
+  t,
+  emptyStateMessage,
+  onResetGroups,
+  draftScopeKey = "anon",
+}) {
   const desktopBreakpoint = 1024;
   const [modalForm, setModalForm] = React.useState(null);
   const [modalAuto, setModalAuto] = React.useState(false);
+  const [snapshotName, setSnapshotName] = React.useState("");
+  const [snapshots, setSnapshots] = React.useState([]);
+  const [selectedSnapshotId, setSelectedSnapshotId] = React.useState(DEFAULT_SNAPSHOT_ID);
+  const [appliedSnapshotId, setAppliedSnapshotId] = React.useState(DEFAULT_SNAPSHOT_ID);
+  const [appliedSnapshotName, setAppliedSnapshotName] = React.useState("");
+  const [baselineSignature, setBaselineSignature] = React.useState(() => serializeGroups(groups));
+  const [snapshotPending, setSnapshotPending] = React.useState(false);
+  const [snapshotFeedback, setSnapshotFeedback] = React.useState(null);
+  const draftInitKeyRef = React.useRef("");
+  const defaultDraftStorageKey = React.useMemo(
+    () => getDefaultDraftStorageKey(draftScopeKey),
+    [draftScopeKey],
+  );
 
   const [dragging, setDragging] = React.useState(null);
   const [dropTarget, setDropTarget] = React.useState(null);
@@ -174,6 +242,31 @@ export function GroupsTab({ groups, setGroups, children, supportWorkers, t, empt
     const places = new Set(groups.flatMap((group) => group.enfantIds));
     return children.filter((enfant) => !places.has(enfant.id));
   }, [groups, children]);
+  const currentSignature = React.useMemo(() => serializeGroups(groups), [groups]);
+  const hasUnsavedSnapshotChanges = currentSignature !== baselineSignature;
+
+  const loadSnapshots = React.useCallback(async (preferredSnapshotId, isActive = () => true) => {
+    const list = await groupsDataService.listGroupSnapshots();
+    if (!isActive()) {
+      return;
+    }
+    setSnapshots(list);
+    setSelectedSnapshotId((current) => {
+      if (preferredSnapshotId === DEFAULT_SNAPSHOT_ID) {
+        return DEFAULT_SNAPSHOT_ID;
+      }
+      if (preferredSnapshotId && list.some((item) => item.id === preferredSnapshotId)) {
+        return preferredSnapshotId;
+      }
+      if (current === DEFAULT_SNAPSHOT_ID) {
+        return DEFAULT_SNAPSHOT_ID;
+      }
+      if (current && list.some((item) => item.id === current)) {
+        return current;
+      }
+      return DEFAULT_SNAPSHOT_ID;
+    });
+  }, []);
 
   const startDragEnfant = (enfant, fromGroupeId, fromSgId) => {
     const compat = calcCompatibilite(enfant, groups, children, supportWorkers, t);
@@ -393,6 +486,68 @@ export function GroupsTab({ groups, setGroups, children, supportWorkers, t, empt
     return () => window.removeEventListener("resize", updateLayoutMode);
   }, [desktopBreakpoint]);
 
+  React.useEffect(() => {
+    if (draftInitKeyRef.current === defaultDraftStorageKey) {
+      return;
+    }
+
+    draftInitKeyRef.current = defaultDraftStorageKey;
+    const savedDraft = readDefaultDraft(defaultDraftStorageKey);
+
+    if (!savedDraft) {
+      writeDefaultDraft(defaultDraftStorageKey, groups);
+      setAppliedSnapshotId(DEFAULT_SNAPSHOT_ID);
+      setAppliedSnapshotName(t("groups.defaultSnapshotName"));
+      setBaselineSignature(serializeGroups(groups));
+      setSelectedSnapshotId(DEFAULT_SNAPSHOT_ID);
+      return;
+    }
+
+    const sanitized = sanitizeGroupsSnapshot(savedDraft, children, supportWorkers);
+    if (serializeGroups(sanitized.groups) !== serializeGroups(groups)) {
+      setGroups(sanitized.groups);
+    }
+    writeDefaultDraft(defaultDraftStorageKey, sanitized.groups);
+
+    setAppliedSnapshotId(DEFAULT_SNAPSHOT_ID);
+    setAppliedSnapshotName(t("groups.defaultSnapshotName"));
+    setBaselineSignature(serializeGroups(sanitized.groups));
+    setSelectedSnapshotId(DEFAULT_SNAPSHOT_ID);
+
+    if (sanitized.removedCount > 0) {
+      setSnapshotFeedback({
+        tone: "warning",
+        text: t("groups.defaultSnapshotSanitized", {
+          count: sanitized.removedCount,
+          suffix: suffixPlural(sanitized.removedCount),
+        }),
+      });
+    }
+  }, [defaultDraftStorageKey, groups, children, supportWorkers, setGroups, t]);
+
+  React.useEffect(() => {
+    writeDefaultDraft(defaultDraftStorageKey, groups);
+  }, [defaultDraftStorageKey, groups]);
+
+  React.useEffect(() => {
+    let active = true;
+
+    loadSnapshots(DEFAULT_SNAPSHOT_ID, () => active)
+      .catch((error) => {
+        if (!active) {
+          return;
+        }
+        setSnapshotFeedback({
+          tone: "error",
+          text: t("groups.snapshotLoadError", { message: error && error.message ? error.message : String(error) }),
+        });
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [loadSnapshots, t]);
+
   const confirmAndResetGroups = () => {
     if (typeof onResetGroups !== "function") {
       return;
@@ -409,11 +564,188 @@ export function GroupsTab({ groups, setGroups, children, supportWorkers, t, empt
     onResetGroups();
   };
 
+  const saveSnapshot = async () => {
+    const normalizedName = normalizeSnapshotName(snapshotName);
+    if (!normalizedName) {
+      setSnapshotFeedback({ tone: "error", text: t("groups.snapshotNameRequired") });
+      return;
+    }
+
+    setSnapshotPending(true);
+    setSnapshotFeedback(null);
+
+    try {
+      const result = await groupsDataService.saveGroupSnapshot({
+        name: normalizedName,
+        groups,
+      });
+
+      await loadSnapshots(result.id);
+      setSnapshotName(result.name);
+      setAppliedSnapshotId(result.id);
+      setAppliedSnapshotName(result.name);
+      setBaselineSignature(currentSignature);
+      setSnapshotFeedback(result.copiedFromName
+        ? {
+          tone: "warning",
+          text: t("groups.snapshotSavedAsCopy", {
+            requested: result.copiedFromName,
+            savedAs: result.name,
+          }),
+        }
+        : {
+          tone: "success",
+          text: t("groups.snapshotSaved", { name: result.name }),
+        });
+    } catch (error) {
+      setSnapshotFeedback({
+        tone: "error",
+        text: t("groups.snapshotSaveError", { message: error && error.message ? error.message : String(error) }),
+      });
+    } finally {
+      setSnapshotPending(false);
+    }
+  };
+
+  const restoreSnapshot = async () => {
+    if (!selectedSnapshotId) {
+      return;
+    }
+
+    if (selectedSnapshotId !== appliedSnapshotId && hasUnsavedSnapshotChanges) {
+      const confirmed = typeof window === "undefined"
+        ? true
+        : window.confirm(
+          t("groups.snapshotUnsavedChangesConfirm", {
+            name: appliedSnapshotName || t("groups.defaultSnapshotName"),
+          }),
+        );
+
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    setSnapshotPending(true);
+    setSnapshotFeedback(null);
+
+    try {
+      if (selectedSnapshotId === DEFAULT_SNAPSHOT_ID) {
+        const savedDraft = readDefaultDraft(defaultDraftStorageKey);
+        const draftGroups = savedDraft || cloneGroups(groups);
+        const sanitizedDraft = sanitizeGroupsSnapshot(draftGroups, children, supportWorkers);
+
+        setGroups(sanitizedDraft.groups);
+        setAppliedSnapshotId(DEFAULT_SNAPSHOT_ID);
+        setAppliedSnapshotName(t("groups.defaultSnapshotName"));
+        setBaselineSignature(serializeGroups(sanitizedDraft.groups));
+
+        if (sanitizedDraft.removedCount > 0) {
+          setSnapshotFeedback({
+            tone: "warning",
+            text: t("groups.snapshotRestoredSanitized", {
+              name: t("groups.defaultSnapshotName"),
+              count: sanitizedDraft.removedCount,
+              suffix: suffixPlural(sanitizedDraft.removedCount),
+            }),
+          });
+        } else {
+          setSnapshotFeedback({
+            tone: "success",
+            text: t("groups.snapshotRestored", { name: t("groups.defaultSnapshotName") }),
+          });
+        }
+        setSnapshotPending(false);
+        return;
+      }
+
+      const snapshot = await groupsDataService.restoreGroupSnapshot(selectedSnapshotId);
+      const sanitized = sanitizeGroupsSnapshot(snapshot.groups, children, supportWorkers);
+      setGroups(sanitized.groups);
+      setAppliedSnapshotId(snapshot.id);
+      setAppliedSnapshotName(snapshot.name);
+      setBaselineSignature(serializeGroups(sanitized.groups));
+
+      if (sanitized.removedCount > 0) {
+        setSnapshotFeedback({
+          tone: "warning",
+          text: t("groups.snapshotRestoredSanitized", {
+            name: snapshot.name,
+            count: sanitized.removedCount,
+            suffix: suffixPlural(sanitized.removedCount),
+          }),
+        });
+      } else {
+        setSnapshotFeedback({
+          tone: "success",
+          text: t("groups.snapshotRestored", { name: snapshot.name }),
+        });
+      }
+    } catch (error) {
+      setSnapshotFeedback({
+        tone: "error",
+        text: t("groups.snapshotRestoreError", { message: error && error.message ? error.message : String(error) }),
+      });
+    } finally {
+      setSnapshotPending(false);
+    }
+  };
+
+  const deleteSnapshot = async () => {
+    if (!selectedSnapshotId || selectedSnapshotId === DEFAULT_SNAPSHOT_ID) {
+      return;
+    }
+
+    const selectedSnapshot = snapshots.find((item) => item.id === selectedSnapshotId);
+    const selectedName = selectedSnapshot ? selectedSnapshot.name : "";
+
+    const confirmed = typeof window === "undefined"
+      ? true
+      : window.confirm(t("groups.snapshotDeleteConfirm", { name: selectedName || "-" }));
+
+    if (!confirmed) {
+      return;
+    }
+
+    setSnapshotPending(true);
+    setSnapshotFeedback(null);
+
+    try {
+      await groupsDataService.deleteGroupSnapshot(selectedSnapshotId);
+      await loadSnapshots(DEFAULT_SNAPSHOT_ID);
+      if (appliedSnapshotId === selectedSnapshotId) {
+        setAppliedSnapshotId(DEFAULT_SNAPSHOT_ID);
+        setAppliedSnapshotName(t("groups.defaultSnapshotName"));
+        setBaselineSignature(currentSignature);
+      }
+      setSnapshotFeedback({
+        tone: "success",
+        text: t("groups.snapshotDeleted", { name: selectedName || "-" }),
+      });
+    } catch (error) {
+      setSnapshotFeedback({
+        tone: "error",
+        text: t("groups.snapshotDeleteError", { message: error && error.message ? error.message : String(error) }),
+      });
+    } finally {
+      setSnapshotPending(false);
+    }
+  };
+
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 12,
+          marginBottom: 12,
+          flexWrap: "wrap",
+        }}
+      >
         <h2 style={{ margin: 0, color: C.text, fontSize: 18, fontWeight: 800 }}>{t("groups.title")}</h2>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           {typeof onResetGroups === "function" ? (
             <Btn variant="danger" small onClick={confirmAndResetGroups}>{t("groups.reset")}</Btn>
           ) : null}
@@ -421,6 +753,115 @@ export function GroupsTab({ groups, setGroups, children, supportWorkers, t, empt
           <Btn onClick={() => setModalForm("new")}>{t("groups.new")}</Btn>
         </div>
       </div>
+
+      <div
+        style={{
+          background: C.card,
+          border: `1px solid ${C.border}`,
+          borderRadius: 10,
+          padding: "10px 12px",
+          marginBottom: 12,
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+          <div style={{ color: C.text, fontSize: 12, fontWeight: 700 }}>{t("groups.snapshotSectionTitle")}</div>
+          <div style={{ color: C.muted, fontSize: 11 }}>{t("groups.snapshotSectionHint")}</div>
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <input
+            data-testid="snapshot-name-input"
+            type="text"
+            value={snapshotName}
+            onChange={(event) => setSnapshotName(event.target.value)}
+            placeholder={t("groups.snapshotNamePlaceholder")}
+            style={{
+              background: C.surface,
+              border: `1px solid ${C.border}`,
+              borderRadius: 7,
+              padding: "5px 10px",
+              color: C.text,
+              fontSize: 12,
+              minWidth: 170,
+              fontFamily: "inherit",
+            }}
+          />
+          <Btn small variant="ghost" disabled={snapshotPending} onClick={saveSnapshot}>
+            {t("groups.saveSnapshot")}
+          </Btn>
+          <select
+            data-testid="snapshot-select"
+            value={selectedSnapshotId}
+            onChange={(event) => setSelectedSnapshotId(event.target.value)}
+            disabled={snapshotPending}
+            style={{
+              background: C.surface,
+              border: `1px solid ${C.border}`,
+              borderRadius: 7,
+              padding: "5px 10px",
+              color: selectedSnapshotId ? C.text : C.muted,
+              fontSize: 12,
+              minWidth: 190,
+              fontFamily: "inherit",
+            }}
+          >
+            <option value={DEFAULT_SNAPSHOT_ID}>{t("groups.defaultSnapshotName")}</option>
+            {snapshots.map((snapshot) => (
+              <option key={snapshot.id} value={snapshot.id}>
+                {snapshot.name}
+              </option>
+            ))}
+          </select>
+          <Btn
+            small
+            variant="ghost"
+            disabled={snapshotPending || !selectedSnapshotId}
+            onClick={restoreSnapshot}
+          >
+            {t("groups.restoreSnapshot")}
+          </Btn>
+          <Btn
+            small
+            variant="danger"
+            disabled={snapshotPending || !selectedSnapshotId || selectedSnapshotId === DEFAULT_SNAPSHOT_ID}
+            onClick={deleteSnapshot}
+          >
+            {t("groups.deleteSnapshot")}
+          </Btn>
+        </div>
+        {hasUnsavedSnapshotChanges ? (
+          <div style={{ color: C.yellow, fontSize: 11, marginTop: 8 }}>
+            {t("groups.snapshotUnsavedChangesHint")}
+          </div>
+        ) : null}
+      </div>
+
+      {snapshotFeedback ? (
+        <div
+          style={{
+            background: snapshotFeedback.tone === "error"
+              ? `${C.red}14`
+              : snapshotFeedback.tone === "warning"
+                ? `${C.yellow}14`
+                : `${C.green}14`,
+            border: `1px solid ${snapshotFeedback.tone === "error"
+              ? `${C.red}44`
+              : snapshotFeedback.tone === "warning"
+                ? `${C.yellow}44`
+                : `${C.green}44`}`,
+            color: snapshotFeedback.tone === "error"
+              ? C.red
+              : snapshotFeedback.tone === "warning"
+                ? C.yellow
+                : C.green,
+            borderRadius: 8,
+            padding: "8px 10px",
+            fontSize: 12,
+            marginBottom: 12,
+          }}
+        >
+          {snapshotFeedback.text}
+        </div>
+      ) : null}
 
       {dropWarning ? (
         <div

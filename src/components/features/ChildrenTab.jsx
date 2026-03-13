@@ -148,7 +148,7 @@ export function ChildrenTab({ children, setChildren, supportWorkers, groups, t, 
               <Sel
                 value={form.ratioMax}
                 onChange={(value) => setForm((prev) => ({ ...prev, ratioMax: value }))}
-                options={[1, 2, 3, 4, 5].map((ratio) => ({
+                options={Array.from({ length: 9 }, (_, index) => index + 1).map((ratio) => ({
                   value: String(ratio),
                   label: t("children.ratioLabel", { count: ratio, suffix: suffixPlural(ratio) }),
                 }))}
