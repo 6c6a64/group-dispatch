@@ -544,6 +544,42 @@ export function GroupsTab({ groups, setGroups, children, supportWorkers, t, empt
     }
   };
 
+  const deleteSnapshot = async () => {
+    if (!selectedSnapshotId) {
+      return;
+    }
+
+    const selectedSnapshot = snapshots.find((item) => item.id === selectedSnapshotId);
+    const selectedName = selectedSnapshot ? selectedSnapshot.name : "";
+
+    const confirmed = typeof window === "undefined"
+      ? true
+      : window.confirm(t("groups.snapshotDeleteConfirm", { name: selectedName || "-" }));
+
+    if (!confirmed) {
+      return;
+    }
+
+    setSnapshotPending(true);
+    setSnapshotFeedback(null);
+
+    try {
+      await groupsDataService.deleteGroupSnapshot(selectedSnapshotId);
+      await loadSnapshots();
+      setSnapshotFeedback({
+        tone: "success",
+        text: t("groups.snapshotDeleted", { name: selectedName || "-" }),
+      });
+    } catch (error) {
+      setSnapshotFeedback({
+        tone: "error",
+        text: t("groups.snapshotDeleteError", { message: error && error.message ? error.message : String(error) }),
+      });
+    } finally {
+      setSnapshotPending(false);
+    }
+  };
+
   return (
     <div>
       <div
@@ -611,6 +647,14 @@ export function GroupsTab({ groups, setGroups, children, supportWorkers, t, empt
               onClick={restoreSnapshot}
             >
               {t("groups.restoreSnapshot")}
+            </Btn>
+            <Btn
+              small
+              variant="danger"
+              disabled={snapshotPending || !selectedSnapshotId}
+              onClick={deleteSnapshot}
+            >
+              {t("groups.deleteSnapshot")}
             </Btn>
             {typeof onResetGroups === "function" ? (
               <Btn variant="danger" small onClick={confirmAndResetGroups}>{t("groups.reset")}</Btn>

@@ -18,6 +18,7 @@ const mockGroupsDataService = {
   listGroupSnapshots: jest.fn(),
   saveGroupSnapshot: jest.fn(),
   restoreGroupSnapshot: jest.fn(),
+  deleteGroupSnapshot: jest.fn(),
 };
 
 jest.mock("../services/authService", () => ({
@@ -64,6 +65,7 @@ describe("group-dispatch auth gate", () => {
     mockGroupsDataService.listGroupSnapshots.mockResolvedValue([]);
     mockGroupsDataService.saveGroupSnapshot.mockResolvedValue({ status: "created", id: "s1", name: "default" });
     mockGroupsDataService.restoreGroupSnapshot.mockResolvedValue({ id: "s1", name: "default", groups: [] });
+    mockGroupsDataService.deleteGroupSnapshot.mockResolvedValue(undefined);
 
     container = document.createElement("div");
     document.body.appendChild(container);

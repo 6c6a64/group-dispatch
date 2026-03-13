@@ -9,6 +9,7 @@ jest.mock("../../services/groupsDataService", () => ({
     listGroupSnapshots: jest.fn(),
     saveGroupSnapshot: jest.fn(),
     restoreGroupSnapshot: jest.fn(),
+    deleteGroupSnapshot: jest.fn(),
   },
 }));
 
@@ -71,6 +72,7 @@ describe("GroupsTab snapshots", () => {
     mockGroupsDataService.listGroupSnapshots.mockReset();
     mockGroupsDataService.saveGroupSnapshot.mockReset();
     mockGroupsDataService.restoreGroupSnapshot.mockReset();
+    mockGroupsDataService.deleteGroupSnapshot.mockReset();
 
     container = document.createElement("div");
     document.body.appendChild(container);
@@ -191,5 +193,26 @@ describe("GroupsTab snapshots", () => {
     ]);
     expect(initialChildren).toEqual([{ id: "e1", nom: "Child 1", age: 8, ratioMax: 2, incompatiblesEnfants: [], incompatiblesAccos: [] }]);
     expect(initialSupportWorkers).toEqual([{ id: "a1", nom: "Aide 1", specialites: [] }]);
+  });
+
+  test("deletes selected snapshot after confirmation", async () => {
+    mockGroupsDataService.listGroupSnapshots
+      .mockResolvedValueOnce([{ id: "s1", name: "Baseline" }])
+      .mockResolvedValueOnce([]);
+    mockGroupsDataService.deleteGroupSnapshot.mockResolvedValue(undefined);
+
+    const originalConfirm = window.confirm;
+    window.confirm = jest.fn(() => true);
+
+    renderTab();
+    await flush(2);
+
+    clickButton("Delete");
+    await flush(2);
+
+    expect(window.confirm).toHaveBeenCalledTimes(1);
+    expect(mockGroupsDataService.deleteGroupSnapshot).toHaveBeenCalledWith("s1");
+
+    window.confirm = originalConfirm;
   });
 });

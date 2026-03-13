@@ -614,4 +614,30 @@ export const groupsDataService = {
       groups: cloneGroups(data.groups_state),
     };
   },
+
+  async deleteGroupSnapshot(snapshotId) {
+    if (!snapshotId) {
+      throw new Error("Snapshot id is required.");
+    }
+
+    if (!isSupabaseConfigured()) {
+      throw new Error("Supabase is not configured.");
+    }
+
+    const client = await getAuthenticatedClient();
+    if (!client) {
+      throw new Error("You must be signed in to delete snapshots.");
+    }
+
+    const { error } = await client
+      .from("group_layout_snapshots")
+      .delete()
+      .eq("id", snapshotId);
+
+    if (error) {
+      throw new Error(`group_layout_snapshots.delete: ${error.message}`);
+    }
+
+    return undefined;
+  },
 };
