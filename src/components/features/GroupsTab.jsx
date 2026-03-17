@@ -110,19 +110,25 @@ function ChildTagsInline({ tags, style = {} }) {
   const visible = normalized.slice(0, CHILD_TAG_PREVIEW_LIMIT);
   const hiddenCount = normalized.length - visible.length;
   const tagPillStyle = {
-    background: `${C.accent}22`,
+    display: "inline-flex",
+    alignItems: "center",
+    height: 18,
+    boxSizing: "border-box",
+    background: `${C.accent}20`,
     color: C.accent,
     border: `1px solid ${C.accent}55`,
-    borderRadius: 6,
-    padding: "1px 6px",
+    borderRadius: 999,
+    padding: "0 7px",
     fontSize: 10,
     fontWeight: 700,
-    lineHeight: 1.4,
+    lineHeight: 1,
+    letterSpacing: 0.1,
+    whiteSpace: "nowrap",
   };
 
   return (
-    <div style={{ ...style }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+    <div style={{ ...style, minWidth: 0 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "nowrap", minWidth: 0 }}>
         {visible.map((tag, index) => (
           <span
             key={`${tag}-${index}`}
@@ -139,15 +145,21 @@ function ChildTagsInline({ tags, style = {} }) {
           >
             <span
               style={{
-                background: `${C.accent}16`,
+                display: "inline-flex",
+                alignItems: "center",
+                height: 18,
+                boxSizing: "border-box",
+                background: `${C.accent}14`,
                 color: C.accent,
-                border: `1px dashed ${C.accent}66`,
-                borderRadius: 6,
-                padding: "1px 6px",
+                border: `1px solid ${C.accent}66`,
+                borderRadius: 999,
+                padding: "0 7px",
                 fontSize: 10,
                 fontWeight: 700,
-                lineHeight: 1.4,
+                lineHeight: 1,
+                letterSpacing: 0.1,
                 cursor: "pointer",
+                whiteSpace: "nowrap",
               }}
             >
               +{hiddenCount}
@@ -158,7 +170,7 @@ function ChildTagsInline({ tags, style = {} }) {
                 style={{
                   position: "absolute",
                   left: 0,
-                  top: "calc(100% + 4px)",
+                  top: "calc(100% + 6px)",
                   zIndex: 20,
                   minWidth: 170,
                   maxWidth: 260,
@@ -272,11 +284,13 @@ function EnfantChip({ enfant, fromGroupeId, fromSgId, children, supportWorkers, 
     >
       <DragHandleColumn />
       <div style={{ padding: "5px 9px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ color: C.text, fontSize: 12, fontWeight: 600 }}>{enfant.nom}</span>
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", alignItems: "center", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+            <span style={{ color: C.text, fontSize: 12, fontWeight: 600, whiteSpace: "nowrap" }}>{enfant.nom}</span>
+            <ChildTagsInline tags={enfant.tags} />
+          </div>
           <span style={{ color: C.muted, fontSize: 11 }}>{`${enfant.age} - 1:${enfant.ratioMax}`}</span>
         </div>
-        <ChildTagsInline tags={enfant.tags} style={{ marginTop: 3 }} />
         {incompatChildren.length > 0 ? (
           <div style={{ fontSize: 11, color: C.yellow, marginTop: 2 }}>{`X ${incompatChildren.join(", ")}`}</div>
         ) : null}
@@ -1075,11 +1089,13 @@ export function GroupsTab({
                     >
                       <DragHandleColumn iconSize={10} />
                       <div style={{ padding: "7px 11px" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
-                          <span style={{ color: C.text, fontWeight: 700, fontSize: 12 }}>{enfant.nom}</span>
+                        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 8, alignItems: "center", marginBottom: 3 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                            <span style={{ color: C.text, fontWeight: 700, fontSize: 12, whiteSpace: "nowrap" }}>{enfant.nom}</span>
+                            <ChildTagsInline tags={enfant.tags} />
+                          </div>
                           <span style={{ color: C.muted, fontSize: 11 }}>{`${enfant.age} - 1:${enfant.ratioMax}`}</span>
                         </div>
-                        <ChildTagsInline tags={enfant.tags} style={{ marginBottom: 4 }} />
 
                         {groupesAge.length === 0 ? (
                           <div style={{ fontSize: 11, color: C.muted }}>{t("groups.noCompatibleGroup", { age: enfant.age })}</div>

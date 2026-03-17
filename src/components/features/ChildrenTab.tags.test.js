@@ -127,7 +127,7 @@ describe("ChildrenTab tags", () => {
       );
     });
 
-    const tagPill = [...container.querySelectorAll("button")].find((entry) => entry.textContent === "Calm");
+    const tagPill = [...container.querySelectorAll("span")].find((entry) => entry.textContent === "Calm");
     expect(tagPill).toBeTruthy();
   });
 });

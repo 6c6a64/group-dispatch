@@ -108,7 +108,7 @@ describe("SupportWorkersTab tags", () => {
       );
     });
 
-    const tagPill = [...container.querySelectorAll("button")].find((entry) => entry.textContent === "Sensory");
+    const tagPill = [...container.querySelectorAll("span")].find((entry) => entry.textContent === "Sensory");
     expect(tagPill).toBeTruthy();
   });
 });
