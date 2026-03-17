@@ -1,4 +1,6 @@
+import React from "react";
 import { C } from "../../app/palette";
+import { dedupeTags, normalizeTag, normalizeTagKey } from "../../domain/tags";
 
 export function Badge({ children, color = C.accent }) {
   return (
@@ -20,11 +22,12 @@ export function Badge({ children, color = C.accent }) {
   );
 }
 
-export function Pill({ children, active, color = C.accent, onClick }) {
+export function Pill({ children, active, color = C.accent, onClick, ...rest }) {
   return (
     <button
       onClick={onClick}
       type="button"
+      {...rest}
       style={{
         background: active ? `${color}22` : C.surface,
         color: active ? color : C.muted,
@@ -43,7 +46,7 @@ export function Pill({ children, active, color = C.accent, onClick }) {
   );
 }
 
-export function Btn({ children, onClick, variant = "primary", small, disabled, type = "button" }) {
+export function Btn({ children, onClick, variant = "primary", small, disabled, type = "button", ...rest }) {
   const styleByVariant = {
     primary: { background: C.accent, color: "#fff", border: "none" },
     ghost: { background: "transparent", color: C.muted, border: `1px solid ${C.border}` },
@@ -56,6 +59,7 @@ export function Btn({ children, onClick, variant = "primary", small, disabled, t
       onClick={onClick}
       type={type}
       disabled={disabled}
+      {...rest}
       style={{
         ...styleByVariant,
         borderRadius: 7,
@@ -72,13 +76,15 @@ export function Btn({ children, onClick, variant = "primary", small, disabled, t
   );
 }
 
-export function Inp({ value, onChange, placeholder, type = "text", style = {} }) {
+export function Inp({ value, onChange, placeholder, type = "text", style = {}, onKeyDown, ...rest }) {
   return (
     <input
       type={type}
       value={value}
       onChange={(event) => onChange(event.target.value)}
+      onKeyDown={onKeyDown}
       placeholder={placeholder}
+      {...rest}
       style={{
         background: C.surface,
         border: `1px solid ${C.border}`,
@@ -93,6 +99,123 @@ export function Inp({ value, onChange, placeholder, type = "text", style = {} })
         ...style,
       }}
     />
+  );
+}
+
+function toTestIdSegment(value) {
+  return normalizeTagKey(value).replace(/[^a-z0-9]+/g, "-");
+}
+
+export function TagSelector({
+  availableTags,
+  selectedTags,
+  onChange,
+  emptyLabel,
+  newPlaceholder,
+  addLabel,
+  color = C.accent,
+  testIdPrefix,
+}) {
+  const [draft, setDraft] = React.useState("");
+  const selected = dedupeTags(selectedTags || []);
+  const selectedKeys = new Set(selected.map((tag) => normalizeTagKey(tag)));
+  const pool = dedupeTags([...(availableTags || []), ...selected]);
+
+  const toggleTag = React.useCallback((tag) => {
+    const key = normalizeTagKey(tag);
+    if (selectedKeys.has(key)) {
+      onChange(selected.filter((entry) => normalizeTagKey(entry) !== key));
+      return;
+    }
+    onChange(dedupeTags([...selected, tag]));
+  }, [onChange, selected, selectedKeys]);
+
+  const addTag = React.useCallback(() => {
+    const nextTag = normalizeTag(draft);
+    if (!nextTag) {
+      setDraft("");
+      return;
+    }
+
+    const mergedPool = dedupeTags([...pool, nextTag]);
+    const targetKey = normalizeTagKey(nextTag);
+    const canonicalTag = mergedPool.find((entry) => normalizeTagKey(entry) === targetKey) || nextTag;
+
+    if (!selectedKeys.has(targetKey)) {
+      onChange(dedupeTags([...selected, canonicalTag]));
+    }
+
+    setDraft("");
+  }, [draft, onChange, pool, selected, selectedKeys]);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {pool.length > 0 ? (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+          {pool.map((tag) => {
+            const key = normalizeTagKey(tag);
+            return (
+              <Pill
+                key={tag}
+                active={selectedKeys.has(key)}
+                color={color}
+                onClick={() => toggleTag(tag)}
+                data-testid={testIdPrefix ? `${testIdPrefix}-existing-pill-${toTestIdSegment(tag)}` : undefined}
+              >
+                {tag}
+              </Pill>
+            );
+          })}
+        </div>
+      ) : (
+        <div style={{ color: C.muted, fontSize: 12 }}>
+          {emptyLabel}
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <Inp
+          value={draft}
+          onChange={setDraft}
+          placeholder={newPlaceholder}
+          data-testid={testIdPrefix ? `${testIdPrefix}-new-input` : undefined}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === "," || event.key === ";") {
+              event.preventDefault();
+              addTag();
+            }
+          }}
+          style={{ flex: 1 }}
+        />
+        <Btn
+          small
+          variant="ghost"
+          onClick={addTag}
+          disabled={!draft.trim()}
+          data-testid={testIdPrefix ? `${testIdPrefix}-add-button` : undefined}
+        >
+          {addLabel}
+        </Btn>
+      </div>
+    </div>
+  );
+}
+
+export function TagPillList({ tags, color = C.accent, emptyLabel }) {
+  const normalized = dedupeTags(tags || []);
+
+  if (normalized.length === 0) {
+    return <div style={{ color: C.muted, fontSize: 11 }}>{emptyLabel}</div>;
+  }
+
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+      {normalized.map((tag) => (
+        <Pill key={tag} active color={color}>
+          {tag}
+        </Pill>
+      ))}
+    </div>
   );
 }
 

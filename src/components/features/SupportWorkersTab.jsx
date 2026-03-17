@@ -1,8 +1,8 @@
 import React from "react";
 import { C } from "../../app/palette";
-import { SPECIALITES } from "../../domain/demoData";
-import { Btn, Inp, Modal, Pill } from "../ui/atoms";
+import { Btn, Inp, Modal, TagPillList, TagSelector } from "../ui/atoms";
 import { suffixPlural } from "../../app/i18n";
+import { dedupeTags } from "../../domain/tags";
 import { sanitizeGroupsSnapshot } from "../../services/groupSnapshots";
 import { buildSupportWorkersCsvTemplate, validateSupportWorkersCsv } from "../../services/csvImport";
 
@@ -16,22 +16,29 @@ export function SupportWorkersTab({
   emptyStateMessage,
 }) {
   const [modal, setModal] = React.useState(null);
-  const [form, setForm] = React.useState({ nom: "", specialites: [] });
+  const [form, setForm] = React.useState({ nom: "", tags: [] });
   const [importModalOpen, setImportModalOpen] = React.useState(false);
   const [importPreview, setImportPreview] = React.useState(null);
   const [importFileName, setImportFileName] = React.useState("");
   const [importFeedback, setImportFeedback] = React.useState(null);
   const fileInputRef = React.useRef(null);
+  const availableSupportWorkerTags = React.useMemo(
+    () => dedupeTags(supportWorkers.flatMap((entry) => entry.tags || entry.specialites || [])),
+    [supportWorkers],
+  );
 
   const groupForSupportWorker = (id) => groups.find((group) => group.accoIds.includes(id));
 
   const openAdd = () => {
-    setForm({ nom: "", specialites: [] });
+    setForm({ nom: "", tags: [] });
     setModal("add");
   };
 
   const openEdit = (supportWorker) => {
-    setForm({ ...supportWorker });
+    setForm({
+      ...supportWorker,
+      tags: dedupeTags(supportWorker.tags || supportWorker.specialites || []),
+    });
     setModal(supportWorker);
   };
 
@@ -40,20 +47,15 @@ export function SupportWorkersTab({
       return;
     }
 
-    const entry = { ...form, id: modal === "add" ? `a${Date.now()}` : modal.id };
+    const entry = {
+      ...form,
+      tags: dedupeTags(form.tags || []),
+      id: modal === "add" ? `a${Date.now()}` : modal.id,
+    };
     setSupportWorkers((prev) => (modal === "add"
       ? [...prev, entry]
       : prev.map((supportWorker) => (supportWorker.id === entry.id ? entry : supportWorker))));
     setModal(null);
-  };
-
-  const toggleSpec = (specialite) => {
-    setForm((prev) => ({
-      ...prev,
-      specialites: prev.specialites.includes(specialite)
-        ? prev.specialites.filter((item) => item !== specialite)
-        : [...prev.specialites, specialite],
-    }));
   };
 
   const downloadTemplate = () => {
@@ -201,6 +203,7 @@ export function SupportWorkersTab({
         {supportWorkers.map((supportWorker) => {
           const group = groupForSupportWorker(supportWorker.id);
           const isResponsable = group && group.responsableId === supportWorker.id;
+          const workerTags = supportWorker.tags || supportWorker.specialites || [];
 
           return (
             <div key={supportWorker.id} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 15 }}>
@@ -213,8 +216,12 @@ export function SupportWorkersTab({
                 </div>
               </div>
 
-              <div style={{ color: C.muted, fontSize: 12, marginBottom: 8 }}>
-                {supportWorker.specialites.length > 0 ? supportWorker.specialites.join(", ") : t("supportWorkers.noSpec")}
+              <div style={{ marginBottom: 8 }}>
+                <TagPillList
+                  tags={workerTags}
+                  color={C.purple}
+                  emptyLabel={t("supportWorkers.noTags")}
+                />
               </div>
 
               {group
@@ -307,19 +314,18 @@ export function SupportWorkersTab({
             </div>
 
             <div>
-              <label style={labelStyle}>{t("supportWorkers.specs")}</label>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-                {SPECIALITES.map((specialite) => (
-                  <Pill
-                    key={specialite}
-                    active={form.specialites.includes(specialite)}
-                    color={C.purple}
-                    onClick={() => toggleSpec(specialite)}
-                  >
-                    {specialite}
-                  </Pill>
-                ))}
-              </div>
+              <label style={labelStyle}>{t("supportWorkers.tags")}</label>
+              <TagSelector
+                availableTags={availableSupportWorkerTags}
+                selectedTags={form.tags || []}
+                onChange={(value) => setForm((prev) => ({ ...prev, tags: value }))}
+                existingLabel={t("tags.existing")}
+                emptyLabel={t("tags.noneExisting")}
+                newPlaceholder={t("tags.newPlaceholder")}
+                addLabel={t("tags.add")}
+                color={C.purple}
+                testIdPrefix="support-workers-tags"
+              />
             </div>
 
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>

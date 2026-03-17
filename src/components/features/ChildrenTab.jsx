@@ -1,7 +1,8 @@
 import React from "react";
 import { C } from "../../app/palette";
-import { Btn, Inp, Modal, Pill, Sel } from "../ui/atoms";
+import { Btn, Inp, Modal, Pill, Sel, TagPillList, TagSelector } from "../ui/atoms";
 import { suffixPlural } from "../../app/i18n";
+import { dedupeTags } from "../../domain/tags";
 import { sanitizeGroupsSnapshot } from "../../services/groupSnapshots";
 import { buildChildrenCsvTemplate, validateChildrenCsv } from "../../services/csvImport";
 
@@ -19,6 +20,7 @@ export function ChildrenTab({
     nom: "",
     age: "",
     ratioMax: "2",
+    tags: [],
     incompatiblesEnfants: [],
     incompatiblesAccos: [],
   });
@@ -27,16 +29,25 @@ export function ChildrenTab({
   const [importFileName, setImportFileName] = React.useState("");
   const [importFeedback, setImportFeedback] = React.useState(null);
   const fileInputRef = React.useRef(null);
+  const availableChildTags = React.useMemo(
+    () => dedupeTags(children.flatMap((entry) => entry.tags || [])),
+    [children],
+  );
 
   const groupeDeEnfant = (id) => groups.find((group) => group.enfantIds.includes(id));
 
   const openAdd = () => {
-    setForm({ nom: "", age: "", ratioMax: "2", incompatiblesEnfants: [], incompatiblesAccos: [] });
+    setForm({ nom: "", age: "", ratioMax: "2", tags: [], incompatiblesEnfants: [], incompatiblesAccos: [] });
     setModal("add");
   };
 
   const openEdit = (enfant) => {
-    setForm({ ...enfant, age: String(enfant.age), ratioMax: String(enfant.ratioMax) });
+    setForm({
+      ...enfant,
+      tags: dedupeTags(enfant.tags || []),
+      age: String(enfant.age),
+      ratioMax: String(enfant.ratioMax),
+    });
     setModal(enfant);
   };
 
@@ -49,6 +60,7 @@ export function ChildrenTab({
       ...form,
       age: Number.parseInt(form.age, 10),
       ratioMax: Number.parseInt(form.ratioMax, 10),
+      tags: dedupeTags(form.tags || []),
       id: modal === "add" ? `e${Date.now()}` : modal.id,
     };
 
@@ -220,6 +232,14 @@ export function ChildrenTab({
                 </div>
               </div>
 
+              <div style={{ marginBottom: 8 }}>
+                <TagPillList
+                  tags={enfant.tags || []}
+                  color={C.accent}
+                  emptyLabel={t("children.noTags")}
+                />
+              </div>
+
               {group
                 ? <div style={{ fontSize: 11, color: C.accent, marginBottom: 4 }}>{t("children.inGroup", { groupName: group.nom })}</div>
                 : <div style={{ fontSize: 11, color: C.yellow, marginBottom: 4 }}>{t("children.notPlaced")}</div>}
@@ -350,6 +370,21 @@ export function ChildrenTab({
                   value: String(ratio),
                   label: t("children.ratioLabel", { count: ratio, suffix: suffixPlural(ratio) }),
                 }))}
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>{t("children.tags")}</label>
+              <TagSelector
+                availableTags={availableChildTags}
+                selectedTags={form.tags || []}
+                onChange={(value) => setForm((prev) => ({ ...prev, tags: value }))}
+                existingLabel={t("tags.existing")}
+                emptyLabel={t("tags.noneExisting")}
+                newPlaceholder={t("tags.newPlaceholder")}
+                addLabel={t("tags.add")}
+                color={C.accent}
+                testIdPrefix="children-tags"
               />
             </div>
 
