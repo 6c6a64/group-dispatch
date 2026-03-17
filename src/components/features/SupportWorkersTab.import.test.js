@@ -84,7 +84,7 @@ describe("SupportWorkersTab import CSV", () => {
     act(() => {
       root.render(
         <SupportWorkersTab
-          supportWorkers={[{ id: "oldA", nom: "Old Aide", specialites: [] }]}
+          supportWorkers={[{ id: "oldA", nom: "Old Aide", tags: [] }]}
           setSupportWorkers={setSupportWorkers}
           groups={groups}
           setGroups={setGroups}
@@ -103,8 +103,8 @@ describe("SupportWorkersTab import CSV", () => {
     });
 
     const csv = [
-      "nom,specialites,id",
-      "Marie F.,TSA;TDAH,a1",
+      "nom,tags,id",
+      "Marie F.,TSA;Morning routine,a1",
     ].join("\n");
 
     await uploadCsv(csv);
@@ -113,7 +113,7 @@ describe("SupportWorkersTab import CSV", () => {
     await flush(2);
 
     expect(setSupportWorkers).toHaveBeenCalledWith([
-      { id: "a1", nom: "Marie F.", specialites: ["TSA", "TDAH"] },
+      { id: "a1", nom: "Marie F.", tags: ["TSA", "Morning routine"] },
     ]);
 
     expect(setGroups).toHaveBeenCalledWith([

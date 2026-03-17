@@ -9,6 +9,7 @@ truncate table
   public.groupes,
   public.enfants_incompat_enfants,
   public.enfants_incompat_accos,
+  public.enfants_tags,
   public.enfants,
   public.acco_specialites,
   public.accos
@@ -87,6 +88,12 @@ insert into public.enfants (id, nom, age, ratio_max, position) values
   ('e28', 'Oceane T.', 14, 2, 27),
   ('e29', 'Victor N.', 14, 3, 28),
   ('e30', 'Anais S.', 14, 2, 29);
+
+insert into public.enfants_tags (enfant_id, tag, position) values
+  ('e1', 'Calme', 0),
+  ('e2', 'Besoin de mouvement', 0),
+  ('e6', 'Support visuel', 0),
+  ('e12', 'Transition sensible', 0);
 
 insert into public.enfants_incompat_enfants (enfant_id, incompatible_enfant_id) values
   ('e1', 'e3'),

@@ -1,21 +1,21 @@
-export const SPECIALITES = ["TSA", "TDAH", "Moteur", "Comportement", "Sensoriel", "Autre"];
+import { dedupeTags } from "./tags";
 
 export const DEMO_ACCOS = [
-  { id: "a1", nom: "Marie F.", specialites: ["TSA", "TDAH"] },
-  { id: "a2", nom: "Pierre G.", specialites: ["Moteur"] },
-  { id: "a3", nom: "Sophie H.", specialites: ["TSA"] },
-  { id: "a4", nom: "Jean M.", specialites: ["Comportement"] },
-  { id: "a5", nom: "Lucie B.", specialites: ["TDAH", "Sensoriel"] },
-  { id: "a6", nom: "Romain D.", specialites: ["TSA", "Moteur"] },
-  { id: "a7", nom: "Camille T.", specialites: ["Comportement", "TDAH"] },
-  { id: "a8", nom: "Antoine V.", specialites: ["TSA"] },
-  { id: "a9", nom: "Nathalie P.", specialites: ["Sensoriel"] },
-  { id: "a10", nom: "Julien R.", specialites: ["TDAH"] },
-  { id: "a11", nom: "Claire S.", specialites: ["TSA", "Comportement"] },
-  { id: "a12", nom: "Marc L.", specialites: ["Moteur", "Sensoriel"] },
-  { id: "a13", nom: "Isabelle N.", specialites: ["TSA", "TDAH"] },
-  { id: "a14", nom: "Thomas W.", specialites: ["Comportement"] },
-  { id: "a15", nom: "Audrey C.", specialites: ["Sensoriel", "TSA"] },
+  { id: "a1", nom: "Marie F.", tags: ["TSA", "TDAH"] },
+  { id: "a2", nom: "Pierre G.", tags: ["Moteur"] },
+  { id: "a3", nom: "Sophie H.", tags: ["TSA"] },
+  { id: "a4", nom: "Jean M.", tags: ["Comportement"] },
+  { id: "a5", nom: "Lucie B.", tags: ["TDAH", "Sensoriel"] },
+  { id: "a6", nom: "Romain D.", tags: ["TSA", "Moteur"] },
+  { id: "a7", nom: "Camille T.", tags: ["Comportement", "TDAH"] },
+  { id: "a8", nom: "Antoine V.", tags: ["TSA"] },
+  { id: "a9", nom: "Nathalie P.", tags: ["Sensoriel"] },
+  { id: "a10", nom: "Julien R.", tags: ["TDAH"] },
+  { id: "a11", nom: "Claire S.", tags: ["TSA", "Comportement"] },
+  { id: "a12", nom: "Marc L.", tags: ["Moteur", "Sensoriel"] },
+  { id: "a13", nom: "Isabelle N.", tags: ["TSA", "TDAH"] },
+  { id: "a14", nom: "Thomas W.", tags: ["Comportement"] },
+  { id: "a15", nom: "Audrey C.", tags: ["Sensoriel", "TSA"] },
 ];
 
 export const DEMO_ENFANTS = [
@@ -114,10 +114,18 @@ export function cloneState(state) {
   return {
     children: state.children.map((item) => ({
       ...item,
+      tags: dedupeTags(item.tags || []),
       incompatiblesEnfants: [...item.incompatiblesEnfants],
       incompatiblesAccos: [...item.incompatiblesAccos],
     })),
-    supportWorkers: state.supportWorkers.map((item) => ({ ...item, specialites: [...item.specialites] })),
+    supportWorkers: state.supportWorkers.map((item) => {
+      const rest = { ...item };
+      delete rest.specialites;
+      return {
+        ...rest,
+        tags: dedupeTags(item.tags || item.specialites || []),
+      };
+    }),
     groups: state.groups.map((group) => ({
       ...group,
       enfantIds: [...group.enfantIds],

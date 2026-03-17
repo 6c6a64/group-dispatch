@@ -1,4 +1,4 @@
-import { SPECIALITES } from "../domain/demoData";
+import { dedupeTags } from "../domain/tags";
 
 const CHILDREN_HEADER_CONFIG = {
   required: ["nom", "age", "ratioMax"],
@@ -21,6 +21,7 @@ const CHILDREN_HEADER_CONFIG = {
       "incompatiblesupportworkers",
       "incompatible_support_workers",
     ],
+    tags: ["tags", "tag"],
   },
 };
 
@@ -29,7 +30,7 @@ const SUPPORT_WORKERS_HEADER_CONFIG = {
   aliases: {
     id: ["id", "identifier"],
     nom: ["nom", "name", "fullname", "full_name"],
-    specialites: ["specialites", "specialties", "speciality", "specialite"],
+    tags: ["tags", "tag"],
   },
 };
 
@@ -258,6 +259,7 @@ export function validateChildrenCsv(csvText, supportWorkers) {
       ratioMax,
       incompatChildrenNames: parseListCell(getValueAt(row.values, resolved.incompatiblesEnfants)),
       incompatSupportWorkerNames: parseListCell(getValueAt(row.values, resolved.incompatiblesAccos)),
+      tags: dedupeTags(parseListCell(getValueAt(row.values, resolved.tags))),
     });
   });
 
@@ -337,6 +339,7 @@ export function validateChildrenCsv(csvText, supportWorkers) {
     nom: entry.nom,
     age: entry.age,
     ratioMax: entry.ratioMax,
+    tags: entry.tags,
     incompatiblesEnfants: entry.incompatiblesEnfants || [],
     incompatiblesAccos: entry.incompatiblesAccos || [],
   }));
@@ -361,10 +364,6 @@ export function validateSupportWorkersCsv(csvText) {
     return toPreviewResult("supportWorkers", rows.length, [], errors);
   }
 
-  const specialitesByKey = new Map(
-    SPECIALITES.map((specialite) => [normalizeNameKey(specialite), specialite]),
-  );
-
   const draftSupportWorkers = [];
 
   rows.forEach((row, index) => {
@@ -376,28 +375,14 @@ export function validateSupportWorkersCsv(csvText) {
       return;
     }
 
-    const specialitesInput = parseListCell(getValueAt(row.values, resolved.specialites));
-    const specialites = [];
-
-    specialitesInput.forEach((entry) => {
-      const key = normalizeNameKey(entry);
-      if (!specialitesByKey.has(key)) {
-        errors.push({
-          line: row.line,
-          field: "specialites",
-          message: `Unknown speciality "${entry}".`,
-        });
-        return;
-      }
-      specialites.push(specialitesByKey.get(key));
-    });
+    const tags = dedupeTags(parseListCell(getValueAt(row.values, resolved.tags)));
 
     draftSupportWorkers.push({
       line: row.line,
       rowIndex: index,
       id: idRaw || createUniqueId("a", index),
       nom,
-      specialites: [...new Set(specialites)],
+      tags,
     });
   });
 
@@ -410,7 +395,7 @@ export function validateSupportWorkersCsv(csvText) {
   const supportWorkerItems = draftSupportWorkers.map((entry) => ({
     id: entry.id,
     nom: entry.nom,
-    specialites: entry.specialites,
+    tags: entry.tags,
   }));
 
   return toPreviewResult("supportWorkers", rows.length, supportWorkerItems, errors);
@@ -418,14 +403,14 @@ export function validateSupportWorkersCsv(csvText) {
 
 export function buildChildrenCsvTemplate() {
   return [
-    "nom,age,ratioMax,incompatiblesEnfants,incompatiblesAccos,id",
-    "Lea M.,7,2,Tom B.;Jade R.,Marie F.,",
+    "nom,age,ratioMax,incompatiblesEnfants,incompatiblesAccos,tags,id",
+    "Lea M.,7,2,Tom B.;Jade R.,Marie F.,Calm;Visual support,",
   ].join("\n");
 }
 
 export function buildSupportWorkersCsvTemplate() {
   return [
-    "nom,specialites,id",
-    "Marie F.,TSA;TDAH,",
+    "nom,tags,id",
+    "Marie F.,TSA;Morning routine,",
   ].join("\n");
 }

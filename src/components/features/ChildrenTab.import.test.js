@@ -87,7 +87,7 @@ describe("ChildrenTab import CSV", () => {
         <ChildrenTab
           children={[]}
           setChildren={setChildren}
-          supportWorkers={[{ id: "a1", nom: "Marie F.", specialites: [] }]}
+          supportWorkers={[{ id: "a1", nom: "Marie F.", tags: [] }]}
           groups={groups}
           setGroups={setGroups}
           t={t}
@@ -97,9 +97,9 @@ describe("ChildrenTab import CSV", () => {
     });
 
     const csv = [
-      "nom,age,ratioMax,incompatiblesEnfants,incompatiblesAccos,id",
-      "Lea M.,7,2,,,e1",
-      "Tom B.,8,3,Lea M.,Marie F.,e2",
+      "nom,age,ratioMax,incompatiblesEnfants,incompatiblesAccos,tags,id",
+      "Lea M.,7,2,,,Calm;Visual,e1",
+      "Tom B.,8,3,Lea M.,Marie F.,Needs break,e2",
     ].join("\n");
 
     await uploadCsv(csv);
@@ -113,6 +113,7 @@ describe("ChildrenTab import CSV", () => {
         nom: "Lea M.",
         age: 7,
         ratioMax: 2,
+        tags: ["Calm", "Visual"],
         incompatiblesEnfants: [],
         incompatiblesAccos: [],
       },
@@ -121,6 +122,7 @@ describe("ChildrenTab import CSV", () => {
         nom: "Tom B.",
         age: 8,
         ratioMax: 3,
+        tags: ["Needs break"],
         incompatiblesEnfants: ["e1"],
         incompatiblesAccos: ["a1"],
       },

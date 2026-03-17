@@ -161,7 +161,7 @@ describe("GroupsTab snapshots", () => {
 
     const setGroups = jest.fn();
     const initialChildren = [{ id: "e1", nom: "Child 1", age: 8, ratioMax: 2, incompatiblesEnfants: [], incompatiblesAccos: [] }];
-    const initialSupportWorkers = [{ id: "a1", nom: "Aide 1", specialites: [] }];
+    const initialSupportWorkers = [{ id: "a1", nom: "Aide 1", tags: [] }];
 
     renderTab({
       setGroups,
@@ -188,7 +188,7 @@ describe("GroupsTab snapshots", () => {
       },
     ]);
     expect(initialChildren).toEqual([{ id: "e1", nom: "Child 1", age: 8, ratioMax: 2, incompatiblesEnfants: [], incompatiblesAccos: [] }]);
-    expect(initialSupportWorkers).toEqual([{ id: "a1", nom: "Aide 1", specialites: [] }]);
+    expect(initialSupportWorkers).toEqual([{ id: "a1", nom: "Aide 1", tags: [] }]);
   });
 
   test("deletes selected snapshot after confirmation", async () => {

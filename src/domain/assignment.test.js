@@ -13,7 +13,7 @@ describe("assignment", () => {
       { id: "e1", nom: "A", age: 8, ratioMax: 2, incompatiblesEnfants: [], incompatiblesAccos: [] },
       { id: "e2", nom: "B", age: 8, ratioMax: 2, incompatiblesEnfants: [], incompatiblesAccos: [] },
     ];
-    const supportWorkers = [{ id: "a1", nom: "Acco 1", specialites: [] }];
+    const supportWorkers = [{ id: "a1", nom: "Acco 1", tags: [] }];
     const groupe = {
       id: "g1",
       nom: "G1",
@@ -38,7 +38,7 @@ describe("assignment", () => {
       { id: "e1", nom: "A", age: 8, ratioMax: 1, incompatiblesEnfants: [], incompatiblesAccos: [] },
       { id: "e2", nom: "B", age: 8, ratioMax: 2, incompatiblesEnfants: [], incompatiblesAccos: [] },
     ];
-    const supportWorkers = [{ id: "a1", nom: "Acco 1", specialites: [] }];
+    const supportWorkers = [{ id: "a1", nom: "Acco 1", tags: [] }];
     const groupe = {
       id: "g1",
       nom: "G1",
@@ -60,7 +60,7 @@ describe("assignment", () => {
 
   test("repartirGlobal reports child when no group age range fits", () => {
     const children = [{ id: "e1", nom: "A", age: 5, ratioMax: 2, incompatiblesEnfants: [], incompatiblesAccos: [] }];
-    const supportWorkers = [{ id: "a1", nom: "Acco 1", specialites: [] }];
+    const supportWorkers = [{ id: "a1", nom: "Acco 1", tags: [] }];
     const groups = [{
       id: "g1",
       nom: "G1",
