@@ -117,9 +117,18 @@ export function TagSelector({
   testIdPrefix,
 }) {
   const [draft, setDraft] = React.useState("");
-  const selected = dedupeTags(selectedTags || []);
-  const selectedKeys = new Set(selected.map((tag) => normalizeTagKey(tag)));
-  const pool = dedupeTags([...(availableTags || []), ...selected]);
+  const selected = React.useMemo(
+    () => dedupeTags(selectedTags || []),
+    [selectedTags],
+  );
+  const selectedKeys = React.useMemo(
+    () => new Set(selected.map((tag) => normalizeTagKey(tag))),
+    [selected],
+  );
+  const pool = React.useMemo(
+    () => dedupeTags([...(availableTags || []), ...selected]),
+    [availableTags, selected],
+  );
 
   const toggleTag = React.useCallback((tag) => {
     const key = normalizeTagKey(tag);
