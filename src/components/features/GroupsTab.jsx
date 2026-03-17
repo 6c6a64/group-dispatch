@@ -1,5 +1,6 @@
 import React from "react";
 import { C } from "../../app/palette";
+import { dedupeTags } from "../../domain/tags";
 import {
   calcCompatibilite,
   calcCompatibiliteAcco,
@@ -16,6 +17,7 @@ import { cloneGroups, normalizeSnapshotName, sanitizeGroupsSnapshot } from "../.
 
 const DEFAULT_SNAPSHOT_ID = "__default_draft__";
 const DEFAULT_DRAFT_STORAGE_PREFIX = "groupDispatch.defaultDraft.";
+const CHILD_TAG_PREVIEW_LIMIT = 2;
 
 function getDefaultDraftStorageKey(scopeKey) {
   return `${DEFAULT_DRAFT_STORAGE_PREFIX}${scopeKey || "anon"}`;
@@ -98,6 +100,92 @@ function DragHandleColumn({ iconSize = 10 }) {
   );
 }
 
+function ChildTagsInline({ tags, style = {} }) {
+  const normalized = dedupeTags(tags || []);
+  const [showAllTags, setShowAllTags] = React.useState(false);
+  if (normalized.length === 0) {
+    return null;
+  }
+
+  const visible = normalized.slice(0, CHILD_TAG_PREVIEW_LIMIT);
+  const hiddenCount = normalized.length - visible.length;
+  const tagPillStyle = {
+    background: `${C.accent}22`,
+    color: C.accent,
+    border: `1px solid ${C.accent}55`,
+    borderRadius: 6,
+    padding: "1px 6px",
+    fontSize: 10,
+    fontWeight: 700,
+    lineHeight: 1.4,
+  };
+
+  return (
+    <div style={{ ...style }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+        {visible.map((tag, index) => (
+          <span
+            key={`${tag}-${index}`}
+            style={tagPillStyle}
+          >
+            {tag}
+          </span>
+        ))}
+        {hiddenCount > 0 ? (
+          <span
+            style={{ position: "relative", display: "inline-flex" }}
+            onMouseEnter={() => setShowAllTags(true)}
+            onMouseLeave={() => setShowAllTags(false)}
+          >
+            <span
+              style={{
+                background: `${C.accent}16`,
+                color: C.accent,
+                border: `1px dashed ${C.accent}66`,
+                borderRadius: 6,
+                padding: "1px 6px",
+                fontSize: 10,
+                fontWeight: 700,
+                lineHeight: 1.4,
+                cursor: "pointer",
+              }}
+            >
+              +{hiddenCount}
+            </span>
+
+            {showAllTags ? (
+              <div
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  top: "calc(100% + 4px)",
+                  zIndex: 20,
+                  minWidth: 170,
+                  maxWidth: 260,
+                  background: C.card2,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 8,
+                  padding: 6,
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 4,
+                  boxShadow: "0 6px 18px #00000055",
+                }}
+              >
+                {normalized.map((tag, index) => (
+                  <span key={`${tag}-all-${index}`} style={tagPillStyle}>
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+          </span>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 export function moveChildBetweenGroups(prev, enfantId, fromGroupeId, fromSgId, toGroupeId, toSgId) {
   const keepInSourceGroup = fromGroupeId
     && toGroupeId
@@ -176,7 +264,7 @@ function EnfantChip({ enfant, fromGroupeId, fromSgId, children, supportWorkers, 
         borderRadius: 6,
         display: "grid",
         gridTemplateColumns: "18px minmax(0, 1fr)",
-        overflow: "hidden",
+        overflow: "visible",
         cursor: "grab",
         opacity: isDragging ? 0.4 : 1,
         border: `1px solid ${isDragging ? C.accent : "transparent"}`,
@@ -188,6 +276,7 @@ function EnfantChip({ enfant, fromGroupeId, fromSgId, children, supportWorkers, 
           <span style={{ color: C.text, fontSize: 12, fontWeight: 600 }}>{enfant.nom}</span>
           <span style={{ color: C.muted, fontSize: 11 }}>{`${enfant.age} - 1:${enfant.ratioMax}`}</span>
         </div>
+        <ChildTagsInline tags={enfant.tags} style={{ marginTop: 3 }} />
         {incompatChildren.length > 0 ? (
           <div style={{ fontSize: 11, color: C.yellow, marginTop: 2 }}>{`X ${incompatChildren.join(", ")}`}</div>
         ) : null}
@@ -979,7 +1068,7 @@ export function GroupsTab({
                         borderRadius: 7,
                         display: "grid",
                         gridTemplateColumns: "18px minmax(0, 1fr)",
-                        overflow: "hidden",
+                        overflow: "visible",
                         cursor: "grab",
                         opacity: dragging && dragging.id === enfant.id ? 0.5 : 1,
                       }}
@@ -990,6 +1079,7 @@ export function GroupsTab({
                           <span style={{ color: C.text, fontWeight: 700, fontSize: 12 }}>{enfant.nom}</span>
                           <span style={{ color: C.muted, fontSize: 11 }}>{`${enfant.age} - 1:${enfant.ratioMax}`}</span>
                         </div>
+                        <ChildTagsInline tags={enfant.tags} style={{ marginBottom: 4 }} />
 
                         {groupesAge.length === 0 ? (
                           <div style={{ fontSize: 11, color: C.muted }}>{t("groups.noCompatibleGroup", { age: enfant.age })}</div>
