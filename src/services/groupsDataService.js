@@ -1,4 +1,5 @@
 import { cloneState, createDemoState, createEmptyState } from "../domain/demoData";
+import { dedupeTags } from "../domain/tags";
 import { cloneGroups, normalizeSnapshotName, normalizeSnapshotNameKey } from "./groupSnapshots";
 import { getSupabaseClient, isSupabaseConfigured } from "./supabaseClient";
 
@@ -61,7 +62,7 @@ async function insertRows(client, table, rows) {
   }
 }
 
-function mapStateToRows(state) {
+export function mapStateToRows(state) {
   const accosRows = state.supportWorkers.map((acco, index) => ({
     id: acco.id,
     nom: acco.nom,
@@ -69,7 +70,7 @@ function mapStateToRows(state) {
   }));
 
   const accoSpecialitesRows = state.supportWorkers.flatMap((acco) => (
-    (acco.specialites || []).map((specialite, index) => ({
+    dedupeTags(acco.tags || acco.specialites || []).map((specialite, index) => ({
       acco_id: acco.id,
       specialite: specialite,
       position: index,
@@ -95,6 +96,14 @@ function mapStateToRows(state) {
     (enfant.incompatiblesAccos || []).map((accoId) => ({
       enfant_id: enfant.id,
       acco_id: accoId,
+    }))
+  ));
+
+  const enfantsTagsRows = state.children.flatMap((enfant) => (
+    dedupeTags(enfant.tags || []).map((tag, index) => ({
+      enfant_id: enfant.id,
+      tag,
+      position: index,
     }))
   ));
 
@@ -147,6 +156,7 @@ function mapStateToRows(state) {
     accosRows,
     accoSpecialitesRows,
     enfantsRows,
+    enfantsTagsRows,
     incompatEnfantsRows,
     incompatAccosRows,
     groupesRows,
@@ -165,6 +175,7 @@ async function persistStateToSupabase(client, state) {
   await deleteAllRows(client, "groupes_enfants", "enfant_id");
   await deleteAllRows(client, "groupes_accos", "acco_id");
   await deleteAllRows(client, "groupes", "id");
+  await deleteAllRows(client, "enfants_tags", "enfant_id");
   await deleteAllRows(client, "enfants_incompat_enfants", "enfant_id");
   await deleteAllRows(client, "enfants_incompat_accos", "enfant_id");
   await deleteAllRows(client, "enfants", "id");
@@ -175,6 +186,7 @@ async function persistStateToSupabase(client, state) {
   await insertRows(client, "acco_specialites", rows.accoSpecialitesRows);
 
   await insertRows(client, "enfants", rows.enfantsRows);
+  await insertRows(client, "enfants_tags", rows.enfantsTagsRows);
   await insertRows(client, "enfants_incompat_enfants", rows.incompatEnfantsRows);
   await insertRows(client, "enfants_incompat_accos", rows.incompatAccosRows);
 
@@ -186,111 +198,34 @@ async function persistStateToSupabase(client, state) {
   await insertRows(client, "sousgroupes_enfants", rows.sousgroupesEnfantsRows);
 }
 
-async function loadStateFromSupabase(client) {
-  const [
-    accosRows,
-    accoSpecialitesRows,
-    enfantsRows,
-    incompatEnfantsRows,
-    incompatAccosRows,
-    groupesRows,
-    groupesAccosRows,
-    groupesEnfantsRows,
-    sousgroupesRows,
-    sousgroupesEnfantsRows,
-  ] = await Promise.all([
-    fetchRows(
-      "supportWorkers.select",
-      client.from("accos").select("id, nom, position").order("position", { ascending: true }).order("id", { ascending: true }),
-    ),
-    fetchRows(
-      "acco_specialites.select",
-      client
-        .from("acco_specialites")
-        .select("acco_id, specialite, position")
-        .order("acco_id", { ascending: true })
-        .order("position", { ascending: true }),
-    ),
-    fetchRows(
-      "children.select",
-      client
-        .from("enfants")
-        .select("id, nom, age, ratio_max, position")
-        .order("position", { ascending: true })
-        .order("id", { ascending: true }),
-    ),
-    fetchRows(
-      "enfants_incompat_enfants.select",
-      client
-        .from("enfants_incompat_enfants")
-        .select("enfant_id, incompatible_enfant_id")
-        .order("enfant_id", { ascending: true }),
-    ),
-    fetchRows(
-      "enfants_incompat_accos.select",
-      client
-        .from("enfants_incompat_accos")
-        .select("enfant_id, acco_id")
-        .order("enfant_id", { ascending: true }),
-    ),
-    fetchRows(
-      "groups.select",
-      client
-        .from("groupes")
-        .select("id, nom, age_min, age_max, responsable_id, position")
-        .order("position", { ascending: true })
-        .order("id", { ascending: true }),
-    ),
-    fetchRows(
-      "groupes_accos.select",
-      client
-        .from("groupes_accos")
-        .select("groupe_id, acco_id, position")
-        .order("groupe_id", { ascending: true })
-        .order("position", { ascending: true }),
-    ),
-    fetchRows(
-      "groupes_enfants.select",
-      client
-        .from("groupes_enfants")
-        .select("groupe_id, enfant_id, position")
-        .order("groupe_id", { ascending: true })
-        .order("position", { ascending: true }),
-    ),
-    fetchRows(
-      "sousgroupes.select",
-      client
-        .from("sousgroupes")
-        .select("id, groupe_id, acco_id, position")
-        .order("groupe_id", { ascending: true })
-        .order("position", { ascending: true }),
-    ),
-    fetchRows(
-      "sousgroupes_enfants.select",
-      client
-        .from("sousgroupes_enfants")
-        .select("sousgroupe_id, groupe_id, enfant_id, position")
-        .order("groupe_id", { ascending: true })
-        .order("sousgroupe_id", { ascending: true })
-        .order("position", { ascending: true }),
-    ),
-  ]);
-
+export function buildStateFromRows({
+  accosRows = [],
+  accoSpecialitesRows = [],
+  enfantsRows = [],
+  enfantsTagsRows = [],
+  incompatEnfantsRows = [],
+  incompatAccosRows = [],
+  groupesRows = [],
+  groupesAccosRows = [],
+  groupesEnfantsRows = [],
+  sousgroupesRows = [],
+  sousgroupesEnfantsRows = [],
+}) {
   const accosById = new Map();
   for (const row of accosRows) {
     accosById.set(row.id, {
       id: row.id,
       nom: row.nom,
-      specialites: [],
+      tags: [],
     });
   }
 
   for (const row of accoSpecialitesRows) {
     const acco = accosById.get(row.acco_id);
-    if (!acco || acco.specialites.includes(row.specialite)) {
+    if (!acco) {
       continue;
     }
-    acco.specialites.push(row.specialite);
+    acco.tags.push(row.specialite);
   }
 
   const enfantsById = new Map();
@@ -300,9 +235,18 @@ async function loadStateFromSupabase(client) {
       nom: row.nom,
       age: row.age,
       ratioMax: row.ratio_max,
+      tags: [],
       incompatiblesEnfants: [],
       incompatiblesAccos: [],
     });
+  }
+
+  for (const row of enfantsTagsRows) {
+    const enfant = enfantsById.get(row.enfant_id);
+    if (!enfant) {
+      continue;
+    }
+    enfant.tags.push(row.tag);
   }
 
   for (const row of incompatEnfantsRows) {
@@ -385,11 +329,132 @@ async function loadStateFromSupabase(client) {
     }
   }
 
+  accosById.forEach((acco) => {
+    acco.tags = dedupeTags(acco.tags);
+  });
+  enfantsById.forEach((enfant) => {
+    enfant.tags = dedupeTags(enfant.tags);
+  });
+
   return {
     children: [...enfantsById.values()],
     supportWorkers: [...accosById.values()],
     groups: [...groupesById.values()],
   };
+}
+
+async function loadStateFromSupabase(client) {
+  const [
+    accosRows,
+    accoSpecialitesRows,
+    enfantsRows,
+    enfantsTagsRows,
+    incompatEnfantsRows,
+    incompatAccosRows,
+    groupesRows,
+    groupesAccosRows,
+    groupesEnfantsRows,
+    sousgroupesRows,
+    sousgroupesEnfantsRows,
+  ] = await Promise.all([
+    fetchRows(
+      "supportWorkers.select",
+      client.from("accos").select("id, nom, position").order("position", { ascending: true }).order("id", { ascending: true }),
+    ),
+    fetchRows(
+      "acco_specialites.select",
+      client
+        .from("acco_specialites")
+        .select("acco_id, specialite, position")
+        .order("acco_id", { ascending: true })
+        .order("position", { ascending: true }),
+    ),
+    fetchRows(
+      "children.select",
+      client
+        .from("enfants")
+        .select("id, nom, age, ratio_max, position")
+        .order("position", { ascending: true })
+        .order("id", { ascending: true }),
+    ),
+    fetchRows(
+      "enfants_tags.select",
+      client
+        .from("enfants_tags")
+        .select("enfant_id, tag, position")
+        .order("enfant_id", { ascending: true })
+        .order("position", { ascending: true }),
+    ),
+    fetchRows(
+      "enfants_incompat_enfants.select",
+      client
+        .from("enfants_incompat_enfants")
+        .select("enfant_id, incompatible_enfant_id")
+        .order("enfant_id", { ascending: true }),
+    ),
+    fetchRows(
+      "enfants_incompat_accos.select",
+      client
+        .from("enfants_incompat_accos")
+        .select("enfant_id, acco_id")
+        .order("enfant_id", { ascending: true }),
+    ),
+    fetchRows(
+      "groups.select",
+      client
+        .from("groupes")
+        .select("id, nom, age_min, age_max, responsable_id, position")
+        .order("position", { ascending: true })
+        .order("id", { ascending: true }),
+    ),
+    fetchRows(
+      "groupes_accos.select",
+      client
+        .from("groupes_accos")
+        .select("groupe_id, acco_id, position")
+        .order("groupe_id", { ascending: true })
+        .order("position", { ascending: true }),
+    ),
+    fetchRows(
+      "groupes_enfants.select",
+      client
+        .from("groupes_enfants")
+        .select("groupe_id, enfant_id, position")
+        .order("groupe_id", { ascending: true })
+        .order("position", { ascending: true }),
+    ),
+    fetchRows(
+      "sousgroupes.select",
+      client
+        .from("sousgroupes")
+        .select("id, groupe_id, acco_id, position")
+        .order("groupe_id", { ascending: true })
+        .order("position", { ascending: true }),
+    ),
+    fetchRows(
+      "sousgroupes_enfants.select",
+      client
+        .from("sousgroupes_enfants")
+        .select("sousgroupe_id, groupe_id, enfant_id, position")
+        .order("groupe_id", { ascending: true })
+        .order("sousgroupe_id", { ascending: true })
+        .order("position", { ascending: true }),
+    ),
+  ]);
+
+  return buildStateFromRows({
+    accosRows,
+    accoSpecialitesRows,
+    enfantsRows,
+    enfantsTagsRows,
+    incompatEnfantsRows,
+    incompatAccosRows,
+    groupesRows,
+    groupesAccosRows,
+    groupesEnfantsRows,
+    sousgroupesRows,
+    sousgroupesEnfantsRows,
+  });
 }
 
 async function listSnapshotNames(client) {
