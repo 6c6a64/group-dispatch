@@ -9,7 +9,7 @@ describe("validation", () => {
       { id: "e1", nom: "A", age: 8, ratioMax: 1, incompatiblesEnfants: ["e2"], incompatiblesAccos: [] },
       { id: "e2", nom: "B", age: 8, ratioMax: 2, incompatiblesEnfants: [], incompatiblesAccos: ["a1"] },
     ];
-    const supportWorkers = [{ id: "a1", nom: "Acco 1", specialites: [] }];
+    const supportWorkers = [{ id: "a1", nom: "Acco 1", tags: [] }];
     const sg = { id: "sg1", accoId: "a1", enfantIds: ["e1", "e2"] };
 
     const conflicts = validerSousGroupe(sg, null, children, supportWorkers, t);
@@ -25,7 +25,7 @@ describe("validation", () => {
       { id: "e1", nom: "A", age: 6, ratioMax: 2, incompatiblesEnfants: [], incompatiblesAccos: [] },
       { id: "e2", nom: "B", age: 8, ratioMax: 2, incompatiblesEnfants: [], incompatiblesAccos: [] },
     ];
-    const supportWorkers = [{ id: "a1", nom: "Acco 1", specialites: [] }];
+    const supportWorkers = [{ id: "a1", nom: "Acco 1", tags: [] }];
 
     const groupe = {
       id: "g1",
