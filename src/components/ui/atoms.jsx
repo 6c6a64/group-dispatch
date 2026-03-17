@@ -384,3 +384,41 @@ export function LanguageSwitch({ lang, setLang, t }) {
     </div>
   );
 }
+
+export function ThemeSwitch({ theme, setTheme, t }) {
+  const optionStyle = (active) => ({
+    border: `1px solid ${active ? `${C.accent}88` : C.border}`,
+    background: active ? `${C.accent}22` : "transparent",
+    color: active ? C.accent : C.muted,
+    borderRadius: 6,
+    padding: "3px 8px",
+    fontSize: 11,
+    fontWeight: 700,
+    cursor: "pointer",
+    fontFamily: "inherit",
+  });
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      <span style={{ color: C.muted, fontSize: 11 }}>{t("app.theme")}</span>
+      <button
+        type="button"
+        style={optionStyle(theme === "light")}
+        onClick={() => setTheme("light")}
+        data-testid="theme-light"
+        aria-pressed={theme === "light"}
+      >
+        {t("app.themeLight")}
+      </button>
+      <button
+        type="button"
+        style={optionStyle(theme === "dark")}
+        onClick={() => setTheme("dark")}
+        data-testid="theme-dark"
+        aria-pressed={theme === "dark"}
+      >
+        {t("app.themeDark")}
+      </button>
+    </div>
+  );
+}

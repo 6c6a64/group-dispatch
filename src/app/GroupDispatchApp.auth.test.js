@@ -66,6 +66,7 @@ describe("group-dispatch auth gate", () => {
     mockGroupsDataService.saveGroupSnapshot.mockResolvedValue({ status: "created", id: "s1", name: "default" });
     mockGroupsDataService.restoreGroupSnapshot.mockResolvedValue({ id: "s1", name: "default", groups: [] });
     mockGroupsDataService.deleteGroupSnapshot.mockResolvedValue(undefined);
+    window.localStorage.clear();
 
     container = document.createElement("div");
     document.body.appendChild(container);
@@ -85,6 +86,8 @@ describe("group-dispatch auth gate", () => {
     await flush(2);
 
     expect(container.textContent.includes("Sign in required")).toBe(true);
+    expect(container.querySelector('[data-testid="theme-light"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="theme-dark"]')).toBeTruthy();
     expect(mockGroupsDataService.loadInitialState).not.toHaveBeenCalled();
   });
 
@@ -99,5 +102,7 @@ describe("group-dispatch auth gate", () => {
     expect(mockGroupsDataService.loadInitialState).toHaveBeenCalledTimes(1);
     expect(container.textContent.includes("Overview")).toBe(true);
     expect(container.textContent.includes("Signed in: user@example.com")).toBe(true);
+    expect(container.querySelector('[data-testid="theme-light"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="theme-dark"]')).toBeTruthy();
   });
 });

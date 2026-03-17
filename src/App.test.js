@@ -2,12 +2,27 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import { act } from "react";
 import App from "./App";
+import { THEME_STORAGE_KEY } from "./app/palette";
 
 global.IS_REACT_ACT_ENVIRONMENT = true;
 
 describe("group-dispatch shell", () => {
   let container;
   let root;
+  let prefersDark = false;
+
+  const installMatchMedia = () => {
+    window.matchMedia = jest.fn().mockImplementation((query) => ({
+      matches: query === "(prefers-color-scheme: dark)" ? prefersDark : false,
+      media: query,
+      onchange: null,
+      addListener: jest.fn(),
+      removeListener: jest.fn(),
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+      dispatchEvent: jest.fn(),
+    }));
+  };
 
   const renderApp = () => {
     act(() => {
@@ -33,6 +48,8 @@ describe("group-dispatch shell", () => {
   };
 
   beforeEach(() => {
+    prefersDark = false;
+    installMatchMedia();
     window.localStorage.clear();
     container = document.createElement("div");
     document.body.appendChild(container);
@@ -84,6 +101,70 @@ describe("group-dispatch shell", () => {
     expect(container.textContent.includes("Overview")).toBe(true);
     expect(container.textContent.includes("Load demo data")).toBe(true);
     expect(container.textContent.includes("Aides")).toBe(true);
+  });
+
+  test("uses system theme by default", async () => {
+    prefersDark = true;
+    installMatchMedia();
+
+    renderApp();
+    await flush();
+
+    const darkButton = container.querySelector('[data-testid="theme-dark"]');
+    const lightButton = container.querySelector('[data-testid="theme-light"]');
+    expect(darkButton).toBeTruthy();
+    expect(lightButton).toBeTruthy();
+    expect(darkButton.getAttribute("aria-pressed")).toBe("true");
+    expect(lightButton.getAttribute("aria-pressed")).toBe("false");
+    expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBeNull();
+  });
+
+  test("theme toggle persists explicit choice", async () => {
+    renderApp();
+    await flush();
+
+    const darkButton = container.querySelector('[data-testid="theme-dark"]');
+    expect(darkButton).toBeTruthy();
+    const appRoot = container.firstChild;
+    expect(appRoot).toBeTruthy();
+    const backgroundBefore = appRoot.style.background;
+
+    act(() => {
+      darkButton.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    await flush();
+
+    const lightButton = container.querySelector('[data-testid="theme-light"]');
+    const backgroundAfter = appRoot.style.background;
+    expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe("dark");
+    expect(darkButton.getAttribute("aria-pressed")).toBe("true");
+    expect(lightButton.getAttribute("aria-pressed")).toBe("false");
+    expect(backgroundAfter).not.toBe(backgroundBefore);
+  });
+
+  test("restores persisted theme on reload", async () => {
+    renderApp();
+    await flush();
+
+    const darkButton = container.querySelector('[data-testid="theme-dark"]');
+    act(() => {
+      darkButton.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    await flush();
+    expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe("dark");
+
+    act(() => {
+      root.unmount();
+    });
+    root = createRoot(container);
+
+    renderApp();
+    await flush();
+
+    const darkButtonAfterReload = container.querySelector('[data-testid="theme-dark"]');
+    const lightButtonAfterReload = container.querySelector('[data-testid="theme-light"]');
+    expect(darkButtonAfterReload.getAttribute("aria-pressed")).toBe("true");
+    expect(lightButtonAfterReload.getAttribute("aria-pressed")).toBe("false");
   });
 
   test("resets groups only with confirmation", async () => {

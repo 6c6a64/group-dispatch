@@ -1,11 +1,19 @@
 import React from "react";
-import { C } from "./palette";
+import {
+  C,
+  applyTheme,
+  resolveSystemTheme,
+  sanitizeThemePreference,
+  THEME_DARK,
+  THEME_LIGHT,
+  THEME_STORAGE_KEY,
+} from "./palette";
 import { createTranslator, suffixPlural } from "./i18n";
 import { validerGroupe } from "../domain/validation";
 import { groupsDataService } from "../services/groupsDataService";
 import { authService } from "../services/authService";
 import { getSupabaseInitError } from "../services/supabaseClient";
-import { LanguageSwitch, Btn } from "../components/ui/atoms";
+import { LanguageSwitch, ThemeSwitch, Btn } from "../components/ui/atoms";
 import { AuthGate } from "../components/features/AuthGate";
 import { DashboardTab } from "../components/features/DashboardTab";
 import { GroupsTab } from "../components/features/GroupsTab";
@@ -22,6 +30,17 @@ const AUTH_STATUS = {
 export default function GroupDispatchApp() {
   const [lang, setLang] = React.useState("en");
   const [tab, setTab] = React.useState("dashboard");
+  const [themePreference, setThemePreference] = React.useState(() => {
+    if (typeof window === "undefined") {
+      return null;
+    }
+    try {
+      return sanitizeThemePreference(window.localStorage.getItem(THEME_STORAGE_KEY));
+    } catch {
+      return null;
+    }
+  });
+  const [systemTheme, setSystemTheme] = React.useState(() => resolveSystemTheme());
 
   const [children, setChildren] = React.useState([]);
   const [supportWorkers, setSupportWorkers] = React.useState([]);
@@ -40,6 +59,14 @@ export default function GroupDispatchApp() {
   const [authNotice, setAuthNotice] = React.useState("");
 
   const t = React.useMemo(() => createTranslator(lang), [lang]);
+  const activeTheme = themePreference || systemTheme;
+  const appliedThemeRef = React.useRef(null);
+
+  // Apply tokens during render so all inline styles pick up the new theme immediately.
+  if (appliedThemeRef.current !== activeTheme) {
+    applyTheme(activeTheme);
+    appliedThemeRef.current = activeTheme;
+  }
 
   const isAuthenticated = !authEnabled || authStatus === AUTH_STATUS.authenticated;
   const authUserId = session && session.user ? session.user.id : null;
@@ -48,6 +75,37 @@ export default function GroupDispatchApp() {
     (error) => (error && error.message ? error.message : String(error)),
     [],
   );
+
+  React.useEffect(() => {
+    if (typeof document !== "undefined") {
+      document.documentElement.style.colorScheme = activeTheme;
+    }
+  }, [activeTheme]);
+
+  React.useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+      return undefined;
+    }
+
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    if (!mediaQuery) {
+      return undefined;
+    }
+    const onChange = (event) => {
+      if (themePreference) {
+        return;
+      }
+      setSystemTheme(event.matches ? THEME_DARK : THEME_LIGHT);
+    };
+
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", onChange);
+      return () => mediaQuery.removeEventListener("change", onChange);
+    }
+
+    mediaQuery.addListener(onChange);
+    return () => mediaQuery.removeListener(onChange);
+  }, [themePreference]);
 
   React.useEffect(() => {
     if (!authEnabled) {
@@ -236,6 +294,20 @@ export default function GroupDispatchApp() {
   };
 
   const authEmail = session && session.user ? session.user.email : "";
+  const setTheme = React.useCallback((nextTheme) => {
+    const sanitized = sanitizeThemePreference(nextTheme);
+    if (!sanitized) {
+      return;
+    }
+    setThemePreference(sanitized);
+    try {
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(THEME_STORAGE_KEY, sanitized);
+      }
+    } catch {
+      // Ignore storage failures to keep theme switching functional.
+    }
+  }, []);
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'DM Sans','Segoe UI',sans-serif", color: C.text }}>
@@ -274,6 +346,7 @@ export default function GroupDispatchApp() {
 
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <LanguageSwitch lang={lang} setLang={setLang} t={t} />
+          <ThemeSwitch theme={activeTheme} setTheme={setTheme} t={t} />
 
           {isAuthenticated ? (
             <>
