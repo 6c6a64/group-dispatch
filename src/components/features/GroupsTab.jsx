@@ -1,5 +1,6 @@
 import React from "react";
 import { C } from "../../app/palette";
+import { dedupeTags } from "../../domain/tags";
 import {
   calcCompatibilite,
   calcCompatibiliteAcco,
@@ -16,6 +17,7 @@ import { cloneGroups, normalizeSnapshotName, sanitizeGroupsSnapshot } from "../.
 
 const DEFAULT_SNAPSHOT_ID = "__default_draft__";
 const DEFAULT_DRAFT_STORAGE_PREFIX = "groupDispatch.defaultDraft.";
+const CHILD_TAG_PREVIEW_LIMIT = 2;
 
 function getDefaultDraftStorageKey(scopeKey) {
   return `${DEFAULT_DRAFT_STORAGE_PREFIX}${scopeKey || "anon"}`;
@@ -98,6 +100,104 @@ function DragHandleColumn({ iconSize = 10 }) {
   );
 }
 
+function ChildTagsInline({ tags, style = {} }) {
+  const normalized = dedupeTags(tags || []);
+  const [showAllTags, setShowAllTags] = React.useState(false);
+  if (normalized.length === 0) {
+    return null;
+  }
+
+  const visible = normalized.slice(0, CHILD_TAG_PREVIEW_LIMIT);
+  const hiddenCount = normalized.length - visible.length;
+  const tagPillStyle = {
+    display: "inline-flex",
+    alignItems: "center",
+    height: 18,
+    boxSizing: "border-box",
+    background: `${C.accent}20`,
+    color: C.accent,
+    border: `1px solid ${C.accent}55`,
+    borderRadius: 999,
+    padding: "0 7px",
+    fontSize: 10,
+    fontWeight: 700,
+    lineHeight: 1,
+    letterSpacing: 0.1,
+    whiteSpace: "nowrap",
+  };
+
+  return (
+    <div style={{ ...style, minWidth: 0 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "nowrap", minWidth: 0 }}>
+        {visible.map((tag, index) => (
+          <span
+            key={`${tag}-${index}`}
+            style={tagPillStyle}
+          >
+            {tag}
+          </span>
+        ))}
+        {hiddenCount > 0 ? (
+          <span
+            style={{ position: "relative", display: "inline-flex" }}
+            onMouseEnter={() => setShowAllTags(true)}
+            onMouseLeave={() => setShowAllTags(false)}
+          >
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                height: 18,
+                boxSizing: "border-box",
+                background: `${C.accent}14`,
+                color: C.accent,
+                border: `1px solid ${C.accent}66`,
+                borderRadius: 999,
+                padding: "0 7px",
+                fontSize: 10,
+                fontWeight: 700,
+                lineHeight: 1,
+                letterSpacing: 0.1,
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              +{hiddenCount}
+            </span>
+
+            {showAllTags ? (
+              <div
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  top: "calc(100% + 6px)",
+                  zIndex: 20,
+                  minWidth: 170,
+                  maxWidth: 260,
+                  background: C.card2,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 8,
+                  padding: 6,
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 4,
+                  boxShadow: "0 6px 18px #00000055",
+                }}
+              >
+                {normalized.map((tag, index) => (
+                  <span key={`${tag}-all-${index}`} style={tagPillStyle}>
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+          </span>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 export function moveChildBetweenGroups(prev, enfantId, fromGroupeId, fromSgId, toGroupeId, toSgId) {
   const keepInSourceGroup = fromGroupeId
     && toGroupeId
@@ -176,7 +276,7 @@ function EnfantChip({ enfant, fromGroupeId, fromSgId, children, supportWorkers, 
         borderRadius: 6,
         display: "grid",
         gridTemplateColumns: "18px minmax(0, 1fr)",
-        overflow: "hidden",
+        overflow: "visible",
         cursor: "grab",
         opacity: isDragging ? 0.4 : 1,
         border: `1px solid ${isDragging ? C.accent : "transparent"}`,
@@ -184,8 +284,11 @@ function EnfantChip({ enfant, fromGroupeId, fromSgId, children, supportWorkers, 
     >
       <DragHandleColumn />
       <div style={{ padding: "5px 9px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ color: C.text, fontSize: 12, fontWeight: 600 }}>{enfant.nom}</span>
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", alignItems: "center", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+            <span style={{ color: C.text, fontSize: 12, fontWeight: 600, whiteSpace: "nowrap" }}>{enfant.nom}</span>
+            <ChildTagsInline tags={enfant.tags} />
+          </div>
           <span style={{ color: C.muted, fontSize: 11 }}>{`${enfant.age} - 1:${enfant.ratioMax}`}</span>
         </div>
         {incompatChildren.length > 0 ? (
@@ -979,15 +1082,18 @@ export function GroupsTab({
                         borderRadius: 7,
                         display: "grid",
                         gridTemplateColumns: "18px minmax(0, 1fr)",
-                        overflow: "hidden",
+                        overflow: "visible",
                         cursor: "grab",
                         opacity: dragging && dragging.id === enfant.id ? 0.5 : 1,
                       }}
                     >
                       <DragHandleColumn iconSize={10} />
                       <div style={{ padding: "7px 11px" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
-                          <span style={{ color: C.text, fontWeight: 700, fontSize: 12 }}>{enfant.nom}</span>
+                        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 8, alignItems: "center", marginBottom: 3 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                            <span style={{ color: C.text, fontWeight: 700, fontSize: 12, whiteSpace: "nowrap" }}>{enfant.nom}</span>
+                            <ChildTagsInline tags={enfant.tags} />
+                          </div>
                           <span style={{ color: C.muted, fontSize: 11 }}>{`${enfant.age} - 1:${enfant.ratioMax}`}</span>
                         </div>
 

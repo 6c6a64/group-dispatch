@@ -220,9 +220,27 @@ export function TagPillList({ tags, color = C.accent, emptyLabel }) {
   return (
     <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
       {normalized.map((tag) => (
-        <Pill key={tag} active color={color}>
+        <span
+          key={tag}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            height: 18,
+            boxSizing: "border-box",
+            padding: "0 8px",
+            borderRadius: 999,
+            background: `${color}20`,
+            border: `1px solid ${color}55`,
+            color: color,
+            fontSize: 11,
+            fontWeight: 700,
+            lineHeight: 1,
+            letterSpacing: 0.1,
+            whiteSpace: "nowrap",
+          }}
+        >
           {tag}
-        </Pill>
+        </span>
       ))}
     </div>
   );
