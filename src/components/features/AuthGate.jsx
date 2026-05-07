@@ -2,16 +2,14 @@ import React from "react";
 import { C } from "../../app/palette";
 import { Btn, Inp } from "../ui/atoms";
 
-export function AuthGate({ t, pending, error, notice, onSignIn, onSignUp }) {
-  const [mode, setMode] = React.useState("signin");
+export function AuthGate({ t, pending, error, notice, onSignIn }) {
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
-  const [confirmPassword, setConfirmPassword] = React.useState("");
   const [localError, setLocalError] = React.useState("");
 
   React.useEffect(() => {
     setLocalError("");
-  }, [mode, email, password, confirmPassword]);
+  }, [email, password]);
 
   const submit = async (event) => {
     event.preventDefault();
@@ -26,16 +24,7 @@ export function AuthGate({ t, pending, error, notice, onSignIn, onSignUp }) {
       return;
     }
 
-    if (mode === "signup" && password !== confirmPassword) {
-      setLocalError(t("auth.errorPasswordMismatch"));
-      return;
-    }
-
-    if (mode === "signin") {
-      await onSignIn(email.trim(), password);
-    } else {
-      await onSignUp(email.trim(), password);
-    }
+    await onSignIn(email.trim(), password);
   };
 
   return (
@@ -53,23 +42,6 @@ export function AuthGate({ t, pending, error, notice, onSignIn, onSignUp }) {
       <h2 style={{ margin: 0, color: C.text, fontSize: 21, fontWeight: 800 }}>{t("auth.title")}</h2>
       <p style={{ margin: "8px 0 18px", color: C.muted, fontSize: 13 }}>{t("auth.subtitle")}</p>
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-        <button
-          type="button"
-          onClick={() => setMode("signin")}
-          style={modeSwitchStyle(mode === "signin")}
-        >
-          {t("auth.signInTab")}
-        </button>
-        <button
-          type="button"
-          onClick={() => setMode("signup")}
-          style={modeSwitchStyle(mode === "signup")}
-        >
-          {t("auth.signUpTab")}
-        </button>
-      </div>
-
       <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         <div>
           <label style={labelStyle}>{t("auth.email")}</label>
@@ -80,13 +52,6 @@ export function AuthGate({ t, pending, error, notice, onSignIn, onSignUp }) {
           <label style={labelStyle}>{t("auth.password")}</label>
           <Inp value={password} onChange={setPassword} type="password" placeholder="******" />
         </div>
-
-        {mode === "signup" ? (
-          <div>
-            <label style={labelStyle}>{t("auth.confirmPassword")}</label>
-            <Inp value={confirmPassword} onChange={setConfirmPassword} type="password" placeholder="******" />
-          </div>
-        ) : null}
 
         {notice ? (
           <div
@@ -120,13 +85,7 @@ export function AuthGate({ t, pending, error, notice, onSignIn, onSignUp }) {
 
         <div style={{ marginTop: 4 }}>
           <Btn type="submit" disabled={pending}>
-            {pending
-              ? mode === "signin"
-                ? t("auth.signingIn")
-                : t("auth.signingUp")
-              : mode === "signin"
-                ? t("auth.signIn")
-                : t("auth.signUp")}
+            {pending ? t("auth.signingIn") : t("auth.signIn")}
           </Btn>
         </div>
       </form>
@@ -141,16 +100,3 @@ const labelStyle = {
   fontSize: 12,
   fontWeight: 600,
 };
-
-const modeSwitchStyle = (active) => ({
-  flex: 1,
-  border: `1px solid ${active ? `${C.accent}88` : C.border}`,
-  background: active ? `${C.accent}22` : C.surface,
-  color: active ? C.accent : C.muted,
-  borderRadius: 7,
-  padding: "7px 8px",
-  fontSize: 12,
-  fontWeight: 700,
-  cursor: "pointer",
-  fontFamily: "inherit",
-});

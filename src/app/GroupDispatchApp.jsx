@@ -265,23 +265,6 @@ export default function GroupDispatchApp() {
     }
   };
 
-  const signUp = async (email, password) => {
-    setAuthError("");
-    setAuthNotice("");
-    setAuthPending(true);
-
-    try {
-      const data = await authService.signUp(email, password);
-      if (!data || !data.session) {
-        setAuthNotice(t("auth.signUpCheckInbox"));
-      }
-    } catch (error) {
-      setAuthError(error && error.message ? error.message : String(error));
-    } finally {
-      setAuthPending(false);
-    }
-  };
-
   const signOut = async () => {
     setAuthError("");
     setAuthNotice("");
@@ -444,7 +427,6 @@ export default function GroupDispatchApp() {
             error={authError}
             notice={authNotice}
             onSignIn={signIn}
-            onSignUp={signUp}
           />
         ) : null}
 
