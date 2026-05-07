@@ -18,12 +18,9 @@ export const authService = {
   },
 
   async signUp(email, password) {
-    const client = requireClient();
-    const { data, error } = await client.auth.signUp({ email, password });
-    if (error) {
-      throw error;
-    }
-    return data;
+    void email;
+    void password;
+    throw new Error("Account creation is disabled. Ask an administrator to create your account.");
   },
 
   async signInWithPassword(email, password) {
